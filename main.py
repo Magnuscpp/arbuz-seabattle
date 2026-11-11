@@ -112,10 +112,16 @@ class SeaBattleApp:
                         w, h, _, data = dpg.load_image(str(p))
                         dpg.add_static_texture(w, h, data, tag=f"ui_{btn_name}{suffix}")
 
-            # Кадры анимации вращения ориентации корабля (штурвал 0..90 градусов)
+            # Кадры анимации вращения ориентации корабля (0..90 градусов для каждого типа корабля)
+            for sz in (1, 2, 3, 4, 5):
+                for f in range(7):
+                    p = asset_dir / f"orient_{sz}_frame_{f}.png"
+                    if p.exists():
+                        w, h, _, data = dpg.load_image(str(p))
+                        dpg.add_static_texture(w, h, data, tag=f"ui_orient_{sz}_frame_{f}")
             for f in range(7):
                 p = asset_dir / f"orient_frame_{f}.png"
-                if p.exists():
+                if p.exists() and not dpg.does_item_exist(f"ui_orient_frame_{f}"):
                     w, h, _, data = dpg.load_image(str(p))
                     dpg.add_static_texture(w, h, data, tag=f"ui_orient_frame_{f}")
 
@@ -335,8 +341,11 @@ class SeaBattleApp:
         progress = min(1.0, (time.monotonic() - started) / 0.16)
         curr_f = int(round(start_f + (end_f - start_f) * progress))
         curr_f = max(0, min(6, curr_f))
+        tex = f"ui_orient_{self.selected_size}_frame_{curr_f}"
+        if not dpg.does_item_exist(tex):
+            tex = f"ui_orient_frame_{curr_f}"
         if dpg.does_item_exist("orient_widget_btn"):
-            dpg.configure_item("orient_widget_btn", texture_tag=f"ui_orient_frame_{curr_f}")
+            dpg.configure_item("orient_widget_btn", texture_tag=tex)
         if progress >= 1.0:
             self.orient_anim = None
 
@@ -518,105 +527,121 @@ class SeaBattleApp:
                     dpg.add_spacer(height=6)
                     self._board_widget("placement", clickable=True, cell=cell)
 
-                # Правая панель: Выбор кораблей с SVG иконками boat.svg
+                # Правая панель: Выбор кораблей и Расположение
                 with dpg.child_window(width=right_width, height=panel_height, no_scrollbar=True, tag="placement_controls"):
                     dpg.bind_item_theme("placement_controls", "card_theme")
-                    t_head = dpg.add_text("ВЫБОР КОРАБЛЯ", indent=10)
-                    if self.fonts and "semibold" in self.fonts:
-                        dpg.bind_item_font(t_head, self.fonts["semibold"])
-
-                    dpg.add_spacer(height=8)
-
-                    # Карточки выбора кораблей с индикацией (зеленые/красные квадраты и цветовой фон)
-                    card_btn_w = min(300, right_width - 24)
-                    rem_dict = self.player.get_remaining_to_place()
-                    for n in available_sizes:
-                        total = self.player.fleet_config.get(n, 1)
-                        rem = rem_dict.get(n, total)
-                        placed = max(0, min(total, total - rem))
-                        is_active = 1 if n == self.selected_size else 0
-                        tex_tag = f"ui_ship_card_{n}_{total}_{placed}_{is_active}"
-                        if not dpg.does_item_exist(tex_tag):
-                            tex_tag = f"ui_ship_card_{n}_{'active' if is_active else 'normal'}"
-
-                        dpg.add_image_button(
-                            tex_tag,
-                            width=card_btn_w,
-                            height=42,
-                            indent=10,
-                            callback=self.select_ship,
-                            user_data=n,
-                            tag=f"ship_btn_{n}",
-                            background_color=(0, 0, 0, 0)
-                        )
-                        dpg.bind_item_theme(f"ship_btn_{n}", "ui_image_button")
-                        dpg.add_spacer(height=4)
-
                     dpg.add_spacer(height=6)
-                    dpg.add_separator()
-                    dpg.add_spacer(height=8)
 
-                    dpg.add_text("РАСПОЛОЖЕНИЕ", indent=10, color=(120, 130, 145))
-                    dpg.add_spacer(height=4)
+                    # Верхний блок: Выбор кораблей (слева) + Расположение (справа)
                     with dpg.group(horizontal=True, indent=10):
-                        init_f = 0 if self.orientation == "H" else 6
-                        b_orient_ship = dpg.add_image_button(
-                            f"ui_orient_frame_{init_f}",
-                            width=50,
-                            height=50,
-                            frame_padding=0,
-                            callback=self.rotate,
-                            tag="orient_widget_btn",
-                            background_color=(0, 0, 0, 0)
-                        )
-                        dpg.bind_item_theme(b_orient_ship, "ui_image_button")
+                        # Левая колонка: ВЫБОР КОРАБЛЯ и 4 карточки
                         with dpg.group():
-                            dpg.add_spacer(height=4)
-                            t_orient = dpg.add_text(
+                            t_head = dpg.add_text("ВЫБОР КОРАБЛЯ")
+                            if self.fonts and "semibold" in self.fonts:
+                                dpg.bind_item_font(t_head, self.fonts["semibold"])
+                            dpg.add_spacer(height=6)
+
+                            card_btn_w = 240
+                            rem_dict = self.player.get_remaining_to_place()
+                            for n in available_sizes:
+                                total = self.player.fleet_config.get(n, 1)
+                                rem = rem_dict.get(n, total)
+                                placed = max(0, min(total, total - rem))
+                                is_active = 1 if n == self.selected_size else 0
+                                tex_tag = f"ui_ship_card_{n}_{total}_{placed}_{is_active}"
+                                if not dpg.does_item_exist(tex_tag):
+                                    tex_tag = f"ui_ship_card_{n}_{'active' if is_active else 'normal'}"
+
+                                dpg.add_image_button(
+                                    tex_tag,
+                                    width=card_btn_w,
+                                    height=42,
+                                    frame_padding=0,
+                                    callback=self.select_ship,
+                                    user_data=n,
+                                    tag=f"ship_btn_{n}",
+                                    background_color=(0, 0, 0, 0)
+                                )
+                                dpg.bind_item_theme(f"ship_btn_{n}", "ui_image_button")
+                                dpg.add_spacer(height=4)
+
+                        dpg.add_spacer(width=16)
+
+                        # Правая колонка: РАСПОЛОЖЕНИЕ (справа от кораблей)
+                        with dpg.group():
+                            t_orient_title = dpg.add_text("РАСПОЛОЖЕНИЕ", color=(140, 150, 168))
+                            if self.fonts and "semibold" in self.fonts:
+                                dpg.bind_item_font(t_orient_title, self.fonts["semibold"])
+                            dpg.add_spacer(height=16)
+
+                            # Чистая иконка активного корабля без рамок / квадратов
+                            curr_f = 0 if self.orientation == "H" else 6
+                            ship_tex = f"ui_orient_{self.selected_size}_frame_{curr_f}"
+                            if not dpg.does_item_exist(ship_tex):
+                                ship_tex = f"ui_orient_frame_{curr_f}"
+
+                            b_orient_ship = dpg.add_image_button(
+                                ship_tex,
+                                width=64,
+                                height=64,
+                                frame_padding=0,
+                                callback=self.rotate,
+                                tag="orient_widget_btn",
+                                background_color=(0, 0, 0, 0)
+                            )
+                            dpg.bind_item_theme(b_orient_ship, "ui_image_button")
+
+                            dpg.add_spacer(height=8)
+                            t_orient_val = dpg.add_text(
                                 "Горизонтальное" if self.orientation == "H" else "Вертикальное",
                                 tag="orientation_text",
                                 color=(255, 255, 255)
                             )
                             if self.fonts and "semibold" in self.fonts:
-                                dpg.bind_item_font(t_orient, self.fonts["semibold"])
-                            dpg.add_text("Кликните для поворота на 90° (R)", color=(110, 120, 135))
+                                dpg.bind_item_font(t_orient_val, self.fonts["semibold"])
+                            dpg.add_spacer(height=2)
+                            dpg.add_text("Поворот (R)", color=(110, 120, 135))
 
+                    dpg.add_spacer(height=10)
+                    dpg.add_separator()
                     dpg.add_spacer(height=8)
 
-                    # Повернуть и Очистить со скругленными углами
+                    # Кнопки действий: Повернуть и Очистить, Случайная, Начать бой
+                    # Расстояние между ними ближе на 5 пикселей!
+                    ctrl_btn_w = min(360, right_width - 24)
                     with dpg.group(horizontal=True, indent=10):
                         if dpg.does_item_exist("ui_btn_rotate"):
-                            b_rot = dpg.add_image_button("ui_btn_rotate", width=(card_btn_w - 10) // 2, height=36, frame_padding=0, callback=self.rotate, tag="placement_b_rot")
+                            b_rot = dpg.add_image_button("ui_btn_rotate", width=(ctrl_btn_w - 8) // 2, height=36, frame_padding=0, callback=self.rotate, tag="placement_b_rot")
                         else:
-                            b_rot = dpg.add_button(label="Повернуть (R)", width=(card_btn_w - 10) // 2, height=36, callback=self.rotate, tag="placement_b_rot")
+                            b_rot = dpg.add_button(label="Повернуть (R)", width=(ctrl_btn_w - 8) // 2, height=36, callback=self.rotate, tag="placement_b_rot")
                         dpg.bind_item_theme(b_rot, "ui_image_button")
 
                         if dpg.does_item_exist("ui_btn_clear"):
-                            b_clr = dpg.add_image_button("ui_btn_clear", width=(card_btn_w - 10) // 2, height=36, frame_padding=0, callback=self.clear_placement, tag="placement_b_clr")
+                            b_clr = dpg.add_image_button("ui_btn_clear", width=(ctrl_btn_w - 8) // 2, height=36, frame_padding=0, callback=self.clear_placement, tag="placement_b_clr")
                         else:
-                            b_clr = dpg.add_button(label="Очистить", width=(card_btn_w - 10) // 2, height=36, callback=self.clear_placement, tag="placement_b_clr")
+                            b_clr = dpg.add_button(label="Очистить", width=(ctrl_btn_w - 8) // 2, height=36, callback=self.clear_placement, tag="placement_b_clr")
                         dpg.bind_item_theme(b_clr, "ui_image_button")
 
-                    dpg.add_spacer(height=8)
+                    dpg.add_spacer(height=3)  # На 5px ближе (было 8px)
 
                     # Случайная расстановка
                     if dpg.does_item_exist("ui_btn_random"):
-                        b_rnd = dpg.add_image_button("ui_btn_random", width=card_btn_w, height=36, frame_padding=0, indent=10, callback=self.auto_place, tag="placement_b_rnd")
+                        b_rnd = dpg.add_image_button("ui_btn_random", width=ctrl_btn_w, height=36, frame_padding=0, indent=10, callback=self.auto_place, tag="placement_b_rnd")
                     else:
-                        b_rnd = dpg.add_button(label="Случайная расстановка", width=card_btn_w, height=36, indent=10, callback=self.auto_place, tag="placement_b_rnd")
+                        b_rnd = dpg.add_button(label="Случайная расстановка", width=ctrl_btn_w, height=36, indent=10, callback=self.auto_place, tag="placement_b_rnd")
                     dpg.bind_item_theme(b_rnd, "ui_image_button")
 
-                    dpg.add_spacer(height=12)
+                    dpg.add_spacer(height=7)  # На 5px ближе (было 12px)
 
                     # Кнопка Начать бой
                     if dpg.does_item_exist("ui_btn_start"):
-                        b_start = dpg.add_image_button("ui_btn_start", width=card_btn_w, height=42, frame_padding=0, indent=10, callback=self.start_battle, tag="start_button")
+                        b_start = dpg.add_image_button("ui_btn_start", width=ctrl_btn_w, height=42, frame_padding=0, indent=10, callback=self.start_battle, tag="start_button")
                     else:
-                        b_start = dpg.add_button(label="Начать бой", width=card_btn_w, height=42, indent=10, callback=self.start_battle, tag="start_button")
+                        b_start = dpg.add_button(label="Начать бой", width=ctrl_btn_w, height=42, indent=10, callback=self.start_battle, tag="start_button")
                     dpg.bind_item_theme(b_start, "ui_image_button")
 
-                    dpg.add_spacer(height=6)
-                    dpg.add_text("", tag="placement_status_msg", indent=10, wrap=card_btn_w)
+                    dpg.add_spacer(height=4)
+                    dpg.add_text("", tag="placement_status_msg", indent=10, wrap=ctrl_btn_w)
 
     def _page_multiplayer(self):
         panel_w = min(780, self.view_width - self.sidebar_width - 45)
@@ -866,6 +891,12 @@ class SeaBattleApp:
     def select_ship(self, sender, value, user_data):
         self.selected_size = int(user_data)
         self._update_ship_cards()
+        curr_f = 0 if self.orientation == "H" else 6
+        tex = f"ui_orient_{self.selected_size}_frame_{curr_f}"
+        if not dpg.does_item_exist(tex):
+            tex = f"ui_orient_frame_{curr_f}"
+        if dpg.does_item_exist("orient_widget_btn"):
+            dpg.configure_item("orient_widget_btn", texture_tag=tex)
 
     def rotate(self, *args):
         old_orient = self.orientation

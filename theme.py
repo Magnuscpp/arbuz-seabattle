@@ -45,6 +45,10 @@ def create_themes():
             dpg.add_theme_color(dpg.mvThemeCol_Header, WIDGET)
             dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, WIDGET_HOVER)
             dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, (45, 50, 58, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_TitleBg, (18, 20, 26, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (24, 28, 36, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_TitleBgCollapsed, (18, 20, 26, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_ModalWindowDimBg, (0, 0, 0, 160))
             dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (255, 255, 255, 255))
             dpg.add_theme_color(dpg.mvThemeCol_SliderGrab, (220, 224, 230, 255))
             dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive, (255, 255, 255, 255))
@@ -229,6 +233,14 @@ def create_themes():
             dpg.add_theme_color(dpg.mvThemeCol_Border, STROKE)
             dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 6)
             dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 14, 12)
+        with dpg.theme_component(dpg.mvWindowAppItem):
+            dpg.add_theme_color(dpg.mvThemeCol_WindowBg, PANEL)
+            dpg.add_theme_color(dpg.mvThemeCol_Border, STROKE)
+            dpg.add_theme_color(dpg.mvThemeCol_TitleBg, (18, 20, 26, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (24, 28, 36, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_TitleBgCollapsed, (18, 20, 26, 255))
+            dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 8)
+            dpg.add_theme_style(dpg.mvStyleVar_WindowBorderSize, 1)
 
     # Всплывающее уведомление (Toast / notificationSystem прямоугольник)
     with dpg.theme(tag="toast_theme"):

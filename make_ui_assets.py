@@ -331,7 +331,7 @@ def build_assets():
     names = {5: "Авианосец", 4: "Линкор", 3: "Крейсер", 2: "Эсминец", 1: "Катер"}
     combos = [(5, 1), (4, 1), (3, 2), (3, 1), (2, 3), (2, 2), (1, 4), (1, 3)]
     
-    SHIP_BTN_W = 300
+    SHIP_BTN_W = 240
     SHIP_BTN_H = 42
 
     boat_icons = {
@@ -342,18 +342,6 @@ def build_assets():
     }
 
     svg_dir = ROOT / "svg_sources"
-    deck_icons = {}
-    for sz in [1, 2, 3, 4, 5]:
-        svg_file = svg_dir / f"ship_{sz}deck.svg"
-        if svg_file.exists():
-            deck_icons[sz] = {
-                "green_act": render_deck_svg_full(svg_file, color="#FFFFFF", target_max=22, horizontal=True),
-                "green_norm": render_deck_svg_full(svg_file, color="#86EFAC", target_max=22, horizontal=True),
-                "red_act": render_deck_svg_full(svg_file, color="#FCA5A5", target_max=22, horizontal=True),
-                "red_norm": render_deck_svg_full(svg_file, color="#EF4444", target_max=22, horizontal=True),
-            }
-        else:
-            deck_icons[sz] = boat_icons
 
     for size, total in combos:
         name = names[size]
@@ -369,25 +357,23 @@ def build_assets():
                     bg = (42, 20, 26, 255) if active else (30, 16, 20, 255)
                     border = (239, 68, 68, 255) if active else (75, 30, 38, 255)
                     txt_col = (255, 220, 225, 255) if active else (200, 160, 165, 255)
-                    boat_im = deck_icons[size]["red_act"] if active else deck_icons[size]["red_norm"]
+                    boat_im = boat_icons["red_act"] if active else boat_icons["red_norm"]
                 else:
                     bg = (20, 40, 28, 255) if active else (16, 26, 20, 255)
                     border = (74, 222, 128, 255) if active else (36, 75, 48, 255)
                     txt_col = (255, 255, 255, 255) if active else (215, 235, 220, 255)
-                    boat_im = deck_icons[size]["green_act"] if active else deck_icons[size]["green_norm"]
+                    boat_im = boat_icons["green_act"] if active else boat_icons["green_norm"]
 
                 border_w = 2 if active else 1
                 d.rounded_rectangle((0, 0, SHIP_BTN_W - 1, SHIP_BTN_H - 1), radius=4, fill=bg, outline=border, width=border_w)
-                ix = 8 + (30 - boat_im.width) // 2
-                iy = (SHIP_BTN_H - boat_im.height) // 2
-                im.alpha_composite(boat_im, (ix, iy))
-                d.text((42, 14), f"{name} ({size})", font=font_bold, fill=txt_col, anchor="lt")
+                im.alpha_composite(boat_im, (10, 10))
+                d.text((38, 14), f"{name} ({size})", font=font_bold, fill=txt_col, anchor="lt")
 
                 # Квадратики: сколько есть — зеленые, сколько поставлено — красные
                 sq_size = 13
-                gap = 6
+                gap = 5
                 total_w = total * sq_size + (total - 1) * gap
-                start_x = SHIP_BTN_W - 14 - total_w
+                start_x = SHIP_BTN_W - 10 - total_w
 
                 for i in range(total):
                     x = start_x + i * (sq_size + gap)
@@ -404,24 +390,33 @@ def build_assets():
                     state_name = "active" if active else "normal"
                     im.save(ROOT / f"ship_card_{size}_{state_name}.png")
 
-    # 4b. Кадры вращения виджета ориентации (штурвал 0..90 градусов)
-    orient_svg = svg_dir / "ship_3deck.svg"
-    if not orient_svg.exists():
-        orient_svg = svg_dir / "ship_4deck.svg"
-    
-    if orient_svg.exists():
-        raw_ship = render_deck_svg_full(orient_svg, color="#FFFFFF", target_max=32, horizontal=True)
-        TILE_SZ = 50
-        angles = [0, 15, 30, 45, 60, 75, 90]
+    # 4b. Чистые векторные иконки вращающегося корабля для виджета РАСПОЛОЖЕНИЕ (без рамок/квадратов)
+    CANVAS_SZ = 64
+    angles = [0, 15, 30, 45, 60, 75, 90]
+    max_dims = {5: 56, 4: 54, 3: 48, 2: 40, 1: 32}
+
+    for sz in [1, 2, 3, 4, 5]:
+        svg_f = svg_dir / f"ship_{sz}deck.svg"
+        if not svg_f.exists():
+            continue
+        raw_deck = render_deck_svg_full(svg_f, color="#FFFFFF", target_max=48, horizontal=True)
+        # raw_deck уже горизонтален (носом направо)
+        target_d = max_dims.get(sz, 46)
+        scale = float(target_d) / max(raw_deck.width, raw_deck.height)
+        sw = max(1, int(round(raw_deck.width * scale)))
+        sh = max(1, int(round(raw_deck.height * scale)))
+        scaled_ship = raw_deck.resize((sw, sh), Image.Resampling.LANCZOS)
+
         for f_idx, ang in enumerate(angles):
-            tile = Image.new("RGBA", (TILE_SZ, TILE_SZ), (0, 0, 0, 0))
-            d_t = ImageDraw.Draw(tile)
-            d_t.rounded_rectangle((0, 0, TILE_SZ - 1, TILE_SZ - 1), radius=8, fill=(22, 25, 33, 255), outline=(52, 60, 78, 255), width=1)
-            rot_im = raw_ship.rotate(ang, expand=True, resample=Image.Resampling.BICUBIC)
-            rx = (TILE_SZ - rot_im.width) // 2
-            ry = (TILE_SZ - rot_im.height) // 2
+            tile = Image.new("RGBA", (CANVAS_SZ, CANVAS_SZ), (0, 0, 0, 0))
+            # Вращаем носом вверх (ang градусов)
+            rot_im = scaled_ship.rotate(ang, expand=True, resample=Image.Resampling.BICUBIC)
+            rx = (CANVAS_SZ - rot_im.width) // 2
+            ry = (CANVAS_SZ - rot_im.height) // 2
             tile.alpha_composite(rot_im, (rx, ry))
-            tile.save(ROOT / f"orient_frame_{f_idx}.png")
+            tile.save(ROOT / f"orient_{sz}_frame_{f_idx}.png")
+            if sz == 4:
+                tile.save(ROOT / f"orient_frame_{f_idx}.png")
 
     # 5. Новые векторные иконки и текстуры кнопок из svg_sources
     svg_dir = ROOT / "svg_sources"
