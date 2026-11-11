@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 120" width="24" height="120">
+  <!-- 5-Палубный корабль (Авианосец / Флагман) -->
+  <!-- Корпус -->
+  <path d="M 12 2 C 14.5 5 18 14 18 24 L 18 115.5 C 18 117 16.9 118 15.5 118 L 8.5 118 C 7.1 118 6 117 6 115.5 L 6 24 C 6 14 9.5 5 12 2 Z" 
+        fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Разделители палуб -->
+  <line x1="7" y1="24" x2="17" y2="24" stroke="#FFFFFF" stroke-width="1.5" stroke-dasharray="1.5 1.5" stroke-linecap="round"/>
+  <line x1="7" y1="48" x2="17" y2="48" stroke="#FFFFFF" stroke-width="1.5" stroke-dasharray="1.5 1.5" stroke-linecap="round"/>
+  <line x1="7" y1="72" x2="17" y2="72" stroke="#FFFFFF" stroke-width="1.5" stroke-dasharray="1.5 1.5" stroke-linecap="round"/>
+  <line x1="7" y1="96" x2="17" y2="96" stroke="#FFFFFF" stroke-width="1.5" stroke-dasharray="1.5 1.5" stroke-linecap="round"/>
+  <!-- Палуба 1: Носовая катапульта и разметка взлетной полосы -->
+  <line x1="12" y1="5" x2="12" y2="9" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M 9.5 12 L 12 8 L 14.5 12" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="12" y1="13" x2="12" y2="21" stroke="#FFFFFF" stroke-width="1.8" stroke-dasharray="2 2"/>
+  <!-- Палуба 2: Самолетный подъемник 1 и полоса -->
+  <rect x="9" y="28" width="6" height="6" rx="0.8" fill="none" stroke="#FFFFFF" stroke-width="1.6"/>
+  <line x1="12" y1="36" x2="12" y2="45" stroke="#FFFFFF" stroke-width="1.8" stroke-dasharray="2 2"/>
+  <!-- Палуба 3: Остров (надстройка авианосца) справа, радар и труба -->
+  <rect x="14" y="52" width="3.5" height="14" rx="1" fill="#FFFFFF"/>
+  <line x1="10" y1="50" x2="10" y2="70" stroke="#FFFFFF" stroke-width="1.8" stroke-dasharray="2 2"/>
+  <circle cx="15.7" cy="56" r="0.8" fill="#12161E"/>
+  <circle cx="15.7" cy="62" r="0.8" fill="#12161E"/>
+  <!-- Палуба 4: Подъемник 2 и разметка посадочной зоны -->
+  <line x1="10" y1="74" x2="10" y2="82" stroke="#FFFFFF" stroke-width="1.8" stroke-dasharray="2 2"/>
+  <rect x="8.5" y="84" width="7" height="6" rx="0.8" fill="none" stroke="#FFFFFF" stroke-width="1.6"/>
+  <!-- Палуба 5: Аэрофинишеры (тормозные тросы) и корма -->
+  <line x1="8" y1="99" x2="16" y2="99" stroke="#FFFFFF" stroke-width="1.6"/>
+  <line x1="8" y1="103" x2="16" y2="103" stroke="#FFFFFF" stroke-width="1.6"/>
+  <line x1="8" y1="107" x2="16" y2="107" stroke="#FFFFFF" stroke-width="1.6"/>
+  <circle cx="12" cy="113" r="1.4" fill="#FFFFFF"/>
+</svg>

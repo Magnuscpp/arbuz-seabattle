@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 48" width="24" height="48">
+  <!-- 2-Палубный корабль (Эсминец) -->
+  <!-- Корпус -->
+  <path d="M 12 2 C 14.5 5 18 9 18 16 L 18 43.5 C 18 45 16.9 46 15.5 46 L 8.5 46 C 7.1 46 6 45 6 43.5 L 6 16 C 6 9 9.5 5 12 2 Z" 
+        fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Разделитель палуб (граница клеток) -->
+  <line x1="7" y1="24" x2="17" y2="24" stroke="#FFFFFF" stroke-width="1.5" stroke-dasharray="1.5 1.5" stroke-linecap="round"/>
+  <!-- Палуба 1 (Носовая): Орудийная башня -->
+  <line x1="12" y1="6" x2="12" y2="9" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
+  <circle cx="12" cy="12" r="2.5" fill="none" stroke="#FFFFFF" stroke-width="1.8"/>
+  <circle cx="12" cy="12" r="1" fill="#FFFFFF"/>
+  <rect x="10.5" y="17" width="3" height="2" rx="0.5" fill="#FFFFFF"/>
+  <!-- Палуба 2 (Кормовая): Рубка, мостик, труба -->
+  <path d="M 8.5 28 C 9.8 26.8 14.2 26.8 15.5 28 L 15.5 35 C 15.5 35.6 15 36 14.5 36 L 9.5 36 C 9 36 8.5 35.6 8.5 35 Z" 
+        fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linejoin="round"/>
+  <rect x="10" y="38" width="4" height="2.5" rx="0.6" fill="#FFFFFF"/>
+  <circle cx="12" cy="43" r="1.2" fill="#FFFFFF"/>
+</svg>

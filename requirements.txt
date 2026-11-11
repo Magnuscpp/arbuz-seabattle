@@ -1,0 +1,6 @@
+dearpygui==2.3.1
+paho-mqtt==2.2.0
+Pillow==12.3.0
+qrcode==8.2
+pyinstaller==6.22.3
+CairoSVG==2.9.1

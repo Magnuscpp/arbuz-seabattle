@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- 1-Палубный корабль (Катер) -->
+  <!-- Корпус -->
+  <path d="M 12 2 C 14.5 4.5 18 8 18 13 L 18 19.5 C 18 20.9 16.9 22 15.5 22 L 8.5 22 C 7.1 22 6 20.9 6 19.5 L 6 13 C 6 8 9.5 4.5 12 2 Z" 
+        fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Рубка -->
+  <path d="M 8.5 10.5 C 9.8 9.2 14.2 9.2 15.5 10.5 L 15.5 15 C 15.5 15.6 15 16 14.5 16 L 9.5 16 C 9 16 8.5 15.6 8.5 15 Z" 
+        fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linejoin="round"/>
+  <!-- Труба -->
+  <rect x="10.5" y="17.2" width="3" height="2.2" rx="0.6" fill="#FFFFFF"/>
+  <!-- Носовая часть / люк -->
+  <line x1="12" y1="4.8" x2="12" y2="7.5" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
+</svg>
