@@ -503,7 +503,7 @@ class SeaBattleApp:
 
     def _page_placement(self):
         available = self.view_width - self.sidebar_width - 45
-        left_width = max(330, min(int(available * 0.53), available - 330))
+        left_width = max(330, min(int(available * 0.50), available - 460))
         right_width = available - left_width - 10
         panel_height = max(550, self.view_height - 140)
         cell = max(26, min(56, (left_width - 60) // self.size, (panel_height - 90) // (self.size + 1)))
@@ -539,9 +539,9 @@ class SeaBattleApp:
                             t_head = dpg.add_text("ВЫБОР КОРАБЛЯ")
                             if self.fonts and "semibold" in self.fonts:
                                 dpg.bind_item_font(t_head, self.fonts["semibold"])
-                            dpg.add_spacer(height=6)
+                            dpg.add_spacer(height=4)
 
-                            card_btn_w = 240
+                            card_btn_w = 300
                             rem_dict = self.player.get_remaining_to_place()
                             for n in available_sizes:
                                 total = self.player.fleet_config.get(n, 1)
@@ -563,7 +563,7 @@ class SeaBattleApp:
                                     background_color=(0, 0, 0, 0)
                                 )
                                 dpg.bind_item_theme(f"ship_btn_{n}", "ui_image_button")
-                                dpg.add_spacer(height=4)
+                                dpg.add_spacer(height=3)
 
                         dpg.add_spacer(width=16)
 
@@ -572,7 +572,7 @@ class SeaBattleApp:
                             t_orient_title = dpg.add_text("РАСПОЛОЖЕНИЕ", color=(140, 150, 168))
                             if self.fonts and "semibold" in self.fonts:
                                 dpg.bind_item_font(t_orient_title, self.fonts["semibold"])
-                            dpg.add_spacer(height=16)
+                            dpg.add_spacer(height=6)
 
                             # Чистая иконка активного корабля без рамок / квадратов
                             curr_f = 0 if self.orientation == "H" else 6
@@ -591,7 +591,7 @@ class SeaBattleApp:
                             )
                             dpg.bind_item_theme(b_orient_ship, "ui_image_button")
 
-                            dpg.add_spacer(height=8)
+                            dpg.add_spacer(height=4)
                             t_orient_val = dpg.add_text(
                                 "Горизонтальное" if self.orientation == "H" else "Вертикальное",
                                 tag="orientation_text",
@@ -599,41 +599,38 @@ class SeaBattleApp:
                             )
                             if self.fonts and "semibold" in self.fonts:
                                 dpg.bind_item_font(t_orient_val, self.fonts["semibold"])
-                            dpg.add_spacer(height=2)
                             dpg.add_text("Поворот (R)", color=(110, 120, 135))
 
-                    dpg.add_spacer(height=10)
+                    dpg.add_spacer(height=6)
                     dpg.add_separator()
-                    dpg.add_spacer(height=8)
+                    dpg.add_spacer(height=6)
 
                     # Кнопки действий: Повернуть и Очистить, Случайная, Начать бой
-                    # Расстояние между ними ближе на 5 пикселей!
-                    ctrl_btn_w = min(360, right_width - 24)
+                    # Ширина 300px 1:1 совпадает с карточками и текстурами! Никакой растянутости!
+                    ctrl_btn_w = 300
                     with dpg.group(horizontal=True, indent=10):
                         if dpg.does_item_exist("ui_btn_rotate"):
-                            b_rot = dpg.add_image_button("ui_btn_rotate", width=(ctrl_btn_w - 8) // 2, height=36, frame_padding=0, callback=self.rotate, tag="placement_b_rot")
+                            b_rot = dpg.add_image_button("ui_btn_rotate", width=146, height=36, frame_padding=0, callback=self.rotate, tag="placement_b_rot")
                         else:
-                            b_rot = dpg.add_button(label="Повернуть (R)", width=(ctrl_btn_w - 8) // 2, height=36, callback=self.rotate, tag="placement_b_rot")
+                            b_rot = dpg.add_button(label="Повернуть (R)", width=146, height=36, callback=self.rotate, tag="placement_b_rot")
                         dpg.bind_item_theme(b_rot, "ui_image_button")
 
+                        dpg.add_spacer(width=8)
+
                         if dpg.does_item_exist("ui_btn_clear"):
-                            b_clr = dpg.add_image_button("ui_btn_clear", width=(ctrl_btn_w - 8) // 2, height=36, frame_padding=0, callback=self.clear_placement, tag="placement_b_clr")
+                            b_clr = dpg.add_image_button("ui_btn_clear", width=146, height=36, frame_padding=0, callback=self.clear_placement, tag="placement_b_clr")
                         else:
-                            b_clr = dpg.add_button(label="Очистить", width=(ctrl_btn_w - 8) // 2, height=36, callback=self.clear_placement, tag="placement_b_clr")
+                            b_clr = dpg.add_button(label="Очистить", width=146, height=36, callback=self.clear_placement, tag="placement_b_clr")
                         dpg.bind_item_theme(b_clr, "ui_image_button")
 
-                    dpg.add_spacer(height=3)  # На 5px ближе (было 8px)
-
-                    # Случайная расстановка
+                    # Случайная расстановка (плотно к первому ряду)
                     if dpg.does_item_exist("ui_btn_random"):
                         b_rnd = dpg.add_image_button("ui_btn_random", width=ctrl_btn_w, height=36, frame_padding=0, indent=10, callback=self.auto_place, tag="placement_b_rnd")
                     else:
                         b_rnd = dpg.add_button(label="Случайная расстановка", width=ctrl_btn_w, height=36, indent=10, callback=self.auto_place, tag="placement_b_rnd")
                     dpg.bind_item_theme(b_rnd, "ui_image_button")
 
-                    dpg.add_spacer(height=7)  # На 5px ближе (было 12px)
-
-                    # Кнопка Начать бой
+                    # Кнопка Начать бой (плотно к случайной расстановке)
                     if dpg.does_item_exist("ui_btn_start"):
                         b_start = dpg.add_image_button("ui_btn_start", width=ctrl_btn_w, height=42, frame_padding=0, indent=10, callback=self.start_battle, tag="start_button")
                     else:

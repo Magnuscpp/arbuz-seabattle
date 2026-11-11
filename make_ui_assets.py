@@ -52,7 +52,7 @@ ICONS_SVG = {
 }
 
 def render_svg_to_image(svg_markup, size=24, color="#FFFFFF", stroke_width=2.0):
-    fig = plt.figure(figsize=(1, 1), dpi=size)
+    fig = plt.figure(figsize=(2.4, 2.4), dpi=100)
     ax = fig.add_axes([0, 0, 1, 1])
     fig.patch.set_alpha(0.0)
     ax.patch.set_alpha(0.0)
@@ -60,23 +60,26 @@ def render_svg_to_image(svg_markup, size=24, color="#FFFFFF", stroke_width=2.0):
     ax.set_ylim(24, 0)
     ax.axis('off')
 
+    # Convert stroke width in SVG units to points for 240x240 canvas
+    lw_pts = stroke_width * (240.0 / 24.0) * (72.0 / 100.0)
+
     # Path
     for m in re.finditer(r'<path\s+[^>]*d="([^"]+)"', svg_markup):
         d_str = m.group(1)
         mpl_path = parse_path(d_str)
-        p = patches.PathPatch(mpl_path, facecolor='none', edgecolor=color, lw=stroke_width, capstyle='round', joinstyle='round')
+        p = patches.PathPatch(mpl_path, facecolor='none', edgecolor=color, lw=lw_pts, capstyle='round', joinstyle='round')
         ax.add_patch(p)
 
     # Circles
     for m in re.finditer(r'<circle\s+cx="([^"]+)"\s+cy="([^"]+)"\s+r="([^"]+)"', svg_markup):
         cx, cy, r = float(m.group(1)), float(m.group(2)), float(m.group(3))
-        c = patches.Circle((cx, cy), r, facecolor='none', edgecolor=color, lw=stroke_width)
+        c = patches.Circle((cx, cy), r, facecolor='none', edgecolor=color, lw=lw_pts)
         ax.add_patch(c)
 
     # Lines
     for m in re.finditer(r'<line\s+x1="([^"]+)"\s+y1="([^"]+)"\s+x2="([^"]+)"\s+y2="([^"]+)"', svg_markup):
         x1, y1, x2, y2 = float(m.group(1)), float(m.group(2)), float(m.group(3)), float(m.group(4))
-        l = patches.ConnectionPatch((x1, y1), (x2, y2), "data", "data", edgecolor=color, lw=stroke_width, capstyle='round')
+        l = patches.ConnectionPatch((x1, y1), (x2, y2), "data", "data", edgecolor=color, lw=lw_pts, capstyle='round')
         ax.add_patch(l)
 
     # Polylines
@@ -90,7 +93,7 @@ def render_svg_to_image(svg_markup, size=24, color="#FFFFFF", stroke_width=2.0):
                 poly_pts.append(float(p_pair))
         if poly_pts and not isinstance(poly_pts[0], tuple):
             poly_pts = list(zip(poly_pts[0::2], poly_pts[1::2]))
-        p = patches.Polygon(poly_pts, facecolor='none', edgecolor=color, lw=stroke_width, closed=False)
+        p = patches.Polygon(poly_pts, facecolor='none', edgecolor=color, lw=lw_pts, closed=False)
         ax.add_patch(p)
 
     # Polygons
@@ -104,18 +107,18 @@ def render_svg_to_image(svg_markup, size=24, color="#FFFFFF", stroke_width=2.0):
                 poly_pts.append(float(p_pair))
         if poly_pts and not isinstance(poly_pts[0], tuple):
             poly_pts = list(zip(poly_pts[0::2], poly_pts[1::2]))
-        p = patches.Polygon(poly_pts, facecolor='none', edgecolor=color, lw=stroke_width, closed=True)
+        p = patches.Polygon(poly_pts, facecolor='none', edgecolor=color, lw=lw_pts, closed=True)
         ax.add_patch(p)
 
     # Rectangles
     for m in re.finditer(r'<rect\s+([^>]+)/>', svg_markup):
         attrs = dict(re.findall(r'(\w+)="([^"]+)"', m.group(1)))
         x, y, w, h = float(attrs['x']), float(attrs['y']), float(attrs['width']), float(attrs['height'])
-        r = patches.Rectangle((x, y), w, h, facecolor='none', edgecolor=color, lw=stroke_width)
+        r = patches.Rectangle((x, y), w, h, facecolor='none', edgecolor=color, lw=lw_pts)
         ax.add_patch(r)
 
     buf = BytesIO()
-    plt.savefig(buf, format='png', transparent=True, dpi=size)
+    plt.savefig(buf, format='png', transparent=True, dpi=100)
     plt.close(fig)
     buf.seek(0)
     im = Image.open(buf).convert("RGBA")
@@ -132,13 +135,16 @@ def render_arbitrary_svg(svg_path, size=24, color="#FFFFFF", filled=None, stroke
     else:
         vx, vy, vw, vh = 0, 0, 32, 32
 
-    fig = plt.figure(figsize=(1, 1), dpi=size)
+    # High-resolution supersampling: 256x256 canvas
+    fig = plt.figure(figsize=(2.56, 2.56), dpi=100)
     ax = fig.add_axes([0, 0, 1, 1])
     fig.patch.set_alpha(0.0)
     ax.patch.set_alpha(0.0)
     ax.set_xlim(vx, vx + vw)
     ax.set_ylim(vy + vh, vy)
     ax.axis('off')
+
+    scale_pts = (256.0 / max(vw, vh)) * (72.0 / 100.0)
 
     for m in re.finditer(r'<path\b([^>]*)\bd="([^"]+)"', svg_text):
         attrs, d_str = m.group(1), m.group(2)
@@ -149,23 +155,26 @@ def render_arbitrary_svg(svg_path, size=24, color="#FFFFFF", filled=None, stroke
         if use_fill:
             p = patches.PathPatch(mpl_path, facecolor=color, edgecolor='none')
         else:
-            lw = stroke_width if stroke_width else (vw / 16.0)
+            lw_units = stroke_width if stroke_width else (vw / 16.0)
+            lw = lw_units * scale_pts
             p = patches.PathPatch(mpl_path, facecolor='none', edgecolor=color, lw=lw, capstyle='round', joinstyle='round')
         ax.add_patch(p)
 
     buf = BytesIO()
-    plt.savefig(buf, format='png', transparent=True, dpi=size)
+    plt.savefig(buf, format='png', transparent=True, dpi=100)
     plt.close(fig)
     buf.seek(0)
     im = Image.open(buf).convert('RGBA')
     return im.resize((size, size), Image.Resampling.LANCZOS)
 
-def render_deck_svg_full(svg_path, color="#FFFFFF", target_max=22, horizontal=True):
+def render_deck_hires(svg_path, sz):
     txt = Path(svg_path).read_text(encoding='utf-8')
     vm = re.search(r'viewBox="([0-9\.\s\-]+)"', txt)
-    vx, vy, vw, vh = [float(x) for x in vm.group(1).split()] if vm else (0, 0, 24, 24)
+    vx, vy, vw, vh = [float(x) for x in vm.group(1).split()] if vm else (0, 0, 24, 24 * sz)
 
-    fig = plt.figure(figsize=(1, 1), dpi=150)
+    lw_scale = 7.2
+
+    fig = plt.figure(figsize=(2.4, 2.4 * (vh / vw)), dpi=100)
     ax = fig.add_axes([0, 0, 1, 1])
     fig.patch.set_alpha(0.0)
     ax.patch.set_alpha(0.0)
@@ -175,9 +184,11 @@ def render_deck_svg_full(svg_path, color="#FFFFFF", target_max=22, horizontal=Tr
 
     for m in re.finditer(r'<path\b([^>]*)\bd="([^"]+)"', txt):
         attrs, d = m.group(1), m.group(2)
-        fill = color if ('fill="#FFFFFF"' in attrs or 'fill="white"' in attrs) else 'none'
-        edge = color if ('stroke="#FFFFFF"' in attrs or 'stroke="white"' in attrs or 'stroke=' in attrs) else 'none'
-        ax.add_patch(patches.PathPatch(parse_path(d), facecolor=fill, edgecolor=edge, lw=1.8, capstyle='round', joinstyle='round'))
+        fill = '#FFFFFF' if ('fill="#FFFFFF"' in attrs or 'fill="white"' in attrs) else 'none'
+        edge = '#FFFFFF' if ('stroke="#FFFFFF"' in attrs or 'stroke="white"' in attrs or 'stroke=' in attrs) else 'none'
+        sw_m = re.search(r'stroke-width="([^"]+)"', attrs)
+        sw = float(sw_m.group(1)) if sw_m else 2.0
+        ax.add_patch(patches.PathPatch(parse_path(d), facecolor=fill, edgecolor=edge, lw=sw * lw_scale, capstyle='round', joinstyle='round'))
 
     for m in re.finditer(r'<line\b([^>]+)', txt):
         attrs = m.group(1)
@@ -185,17 +196,21 @@ def render_deck_svg_full(svg_path, color="#FFFFFF", target_max=22, horizontal=Tr
         y1 = float(re.search(r'y1="([^"]+)"', attrs).group(1))
         x2 = float(re.search(r'x2="([^"]+)"', attrs).group(1))
         y2 = float(re.search(r'y2="([^"]+)"', attrs).group(1))
+        sw_m = re.search(r'stroke-width="([^"]+)"', attrs)
+        sw = float(sw_m.group(1)) if sw_m else 1.5
         ls = '--' if 'stroke-dasharray' in attrs else '-'
-        ax.plot([x1, x2], [y1, y2], color=color, lw=1.5, linestyle=ls, solid_capstyle='round')
+        ax.plot([x1, x2], [y1, y2], color='#FFFFFF', lw=sw * lw_scale, linestyle=ls, solid_capstyle='round')
 
     for m in re.finditer(r'<circle\b([^>]+)', txt):
         attrs = m.group(1)
         cx = float(re.search(r'cx="([^"]+)"', attrs).group(1))
         cy = float(re.search(r'cy="([^"]+)"', attrs).group(1))
         r = float(re.search(r'r="([^"]+)"', attrs).group(1))
-        fill = color if ('fill="#FFFFFF"' in attrs or 'fill="white"' in attrs) else 'none'
-        edge = color if ('stroke="#FFFFFF"' in attrs or 'stroke="white"' in attrs or 'stroke=' in attrs) else 'none'
-        ax.add_patch(patches.Circle((cx, cy), r, facecolor=fill, edgecolor=edge, lw=1.6))
+        fill = '#FFFFFF' if ('fill="#FFFFFF"' in attrs or 'fill="white"' in attrs) else 'none'
+        edge = '#FFFFFF' if ('stroke="#FFFFFF"' in attrs or 'stroke="white"' in attrs or 'stroke=' in attrs) else 'none'
+        sw_m = re.search(r'stroke-width="([^"]+)"', attrs)
+        sw = float(sw_m.group(1)) if sw_m else 1.8
+        ax.add_patch(patches.Circle((cx, cy), r, facecolor=fill, edgecolor=edge, lw=sw * lw_scale))
 
     for m in re.finditer(r'<rect\b([^>]+)', txt):
         attrs = m.group(1)
@@ -203,27 +218,19 @@ def render_deck_svg_full(svg_path, color="#FFFFFF", target_max=22, horizontal=Tr
         y = float(re.search(r'y="([^"]+)"', attrs).group(1))
         w = float(re.search(r'width="([^"]+)"', attrs).group(1))
         h = float(re.search(r'height="([^"]+)"', attrs).group(1))
-        fill = color if ('fill="#FFFFFF"' in attrs or 'fill="white"' in attrs) else 'none'
-        edge = color if ('stroke="#FFFFFF"' in attrs or 'stroke="white"' in attrs or 'stroke=' in attrs) else 'none'
-        ax.add_patch(patches.Rectangle((x, y), w, h, facecolor=fill, edgecolor=edge, lw=1.5))
+        fill = '#FFFFFF' if ('fill="#FFFFFF"' in attrs or 'fill="white"' in attrs) else 'none'
+        edge = '#FFFFFF' if ('stroke="#FFFFFF"' in attrs or 'stroke="white"' in attrs or 'stroke=' in attrs) else 'none'
+        sw_m = re.search(r'stroke-width="([^"]+)"', attrs)
+        sw = float(sw_m.group(1)) if sw_m else 1.6
+        ax.add_patch(patches.Rectangle((x, y), w, h, facecolor=fill, edgecolor=edge, lw=sw * lw_scale))
 
     buf = BytesIO()
-    plt.savefig(buf, format='png', transparent=True, bbox_inches='tight', pad_inches=0.02, dpi=200)
+    plt.savefig(buf, format='png', transparent=True, bbox_inches='tight', pad_inches=0.01, dpi=100)
     plt.close(fig)
     buf.seek(0)
     im = Image.open(buf).convert('RGBA')
-
-    if horizontal:
-        im = im.rotate(-90, expand=True, resample=Image.Resampling.BICUBIC)
-        scale = min(20 / im.height, 28 / im.width)
-        new_w = max(1, int(round(im.width * scale)))
-        new_h = max(1, int(round(im.height * scale)))
-        return im.resize((new_w, new_h), Image.Resampling.LANCZOS)
-    else:
-        scale = min(22 / im.height, 22 / im.width)
-        new_w = max(1, int(round(im.width * scale)))
-        new_h = max(1, int(round(im.height * scale)))
-        return im.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    bbox = im.getbbox()
+    return im.crop(bbox) if bbox else im
 
 def render_tight_svg(svg_path, target_h=14, color="#FFFFFF", filled=None, stroke_width=None, base_size=64):
     raw = render_arbitrary_svg(svg_path, size=base_size, color=color, filled=filled, stroke_width=stroke_width)
@@ -331,7 +338,7 @@ def build_assets():
     names = {5: "Авианосец", 4: "Линкор", 3: "Крейсер", 2: "Эсминец", 1: "Катер"}
     combos = [(5, 1), (4, 1), (3, 2), (3, 1), (2, 3), (2, 2), (1, 4), (1, 3)]
     
-    SHIP_BTN_W = 240
+    SHIP_BTN_W = 300
     SHIP_BTN_H = 42
 
     boat_icons = {
@@ -392,28 +399,28 @@ def build_assets():
 
     # 4b. Чистые векторные иконки вращающегося корабля для виджета РАСПОЛОЖЕНИЕ (без рамок/квадратов)
     CANVAS_SZ = 64
-    angles = [0, 15, 30, 45, 60, 75, 90]
-    max_dims = {5: 56, 4: 54, 3: 48, 2: 40, 1: 32}
+    max_dims = {5: 56, 4: 56, 3: 50, 2: 42, 1: 30}
 
     for sz in [1, 2, 3, 4, 5]:
         svg_f = svg_dir / f"ship_{sz}deck.svg"
         if not svg_f.exists():
             continue
-        raw_deck = render_deck_svg_full(svg_f, color="#FFFFFF", target_max=48, horizontal=True)
-        # raw_deck уже горизонтален (носом направо)
-        target_d = max_dims.get(sz, 46)
+        raw_deck = render_deck_hires(svg_f, sz)
+        target_d = max_dims.get(sz, 50)
         scale = float(target_d) / max(raw_deck.width, raw_deck.height)
-        sw = max(1, int(round(raw_deck.width * scale)))
-        sh = max(1, int(round(raw_deck.height * scale)))
-        scaled_ship = raw_deck.resize((sw, sh), Image.Resampling.LANCZOS)
 
-        for f_idx, ang in enumerate(angles):
+        for f_idx in range(7):
+            # ang: f=0 -> -90 (горизонтальное, носом вправо), f=6 -> 0 (вертикальное, носом вверх)
+            ang = -90.0 + (90.0 * f_idx / 6.0)
+            rot_im = raw_deck.rotate(-ang, expand=True, resample=Image.Resampling.BICUBIC)
+            sw = max(1, int(round(rot_im.width * scale)))
+            sh = max(1, int(round(rot_im.height * scale)))
+            scaled_ship = rot_im.resize((sw, sh), Image.Resampling.LANCZOS)
+
             tile = Image.new("RGBA", (CANVAS_SZ, CANVAS_SZ), (0, 0, 0, 0))
-            # Вращаем носом вверх (ang градусов)
-            rot_im = scaled_ship.rotate(ang, expand=True, resample=Image.Resampling.BICUBIC)
-            rx = (CANVAS_SZ - rot_im.width) // 2
-            ry = (CANVAS_SZ - rot_im.height) // 2
-            tile.alpha_composite(rot_im, (rx, ry))
+            rx = (CANVAS_SZ - sw) // 2
+            ry = (CANVAS_SZ - sh) // 2
+            tile.alpha_composite(scaled_ship, (rx, ry))
             tile.save(ROOT / f"orient_{sz}_frame_{f_idx}.png")
             if sz == 4:
                 tile.save(ROOT / f"orient_frame_{f_idx}.png")
@@ -432,49 +439,48 @@ def build_assets():
             im_despair.save(ROOT / "icon_despair_accent.png")
 
         # Иконки для кнопок управления (с плотным кадрированием без пустот)
-        ico_rot = render_tight_svg(svg_dir / "reload.svg", target_h=14, color="#FFFFFF", filled=True) if (svg_dir / "reload.svg").exists() else None
-        ico_clr = render_tight_svg(svg_dir / "clear.svg", target_h=14, color="#F87171", filled=False, stroke_width=3.5) if (svg_dir / "clear.svg").exists() else None
-        ico_rnd = render_tight_svg(svg_dir / "dice.svg", target_h=14, color="#FFFFFF", filled=True) if (svg_dir / "dice.svg").exists() else None
-        # Иконка «Начать бой» увеличена на 6px и плотно кадрирована
-        ico_play = render_tight_svg(svg_dir / "play.svg", target_h=15, color="#0E0F12", filled=True) if (svg_dir / "play.svg").exists() else None
+        ico_rot = render_tight_svg(svg_dir / "reload.svg", target_h=15, color="#FFFFFF", filled=True) if (svg_dir / "reload.svg").exists() else None
+        ico_clr = render_tight_svg(svg_dir / "clear.svg", target_h=15, color="#F87171", filled=False, stroke_width=3.5) if (svg_dir / "clear.svg").exists() else None
+        ico_rnd = render_tight_svg(svg_dir / "dice.svg", target_h=16, color="#FFFFFF", filled=True) if (svg_dir / "dice.svg").exists() else None
+        ico_play = render_tight_svg(svg_dir / "play.svg", target_h=16, color="#0E0F12", filled=True) if (svg_dir / "play.svg").exists() else None
 
-        # Кнопка Повернуть (R): 145x36 со скруглением radius=8 и hover состоянием
+        # Кнопка Повернуть (R): 146x36 со скруглением radius=6 и hover состоянием
         if ico_rot:
             for state, bg, border, txt_col in [
                 ("normal", (22, 24, 28, 255), (46, 52, 64, 255), (240, 243, 248, 255)),
                 ("hov", (34, 38, 50, 255), (85, 98, 120, 255), (255, 255, 255, 255)),
             ]:
-                im = Image.new("RGBA", (145, 36), (0, 0, 0, 0))
+                im = Image.new("RGBA", (146, 36), (0, 0, 0, 0))
                 d = ImageDraw.Draw(im)
-                d.rounded_rectangle((0, 0, 144, 35), radius=8, fill=bg, outline=border, width=1)
+                d.rounded_rectangle((0, 0, 145, 35), radius=6, fill=bg, outline=border, width=1)
                 bbox = d.textbbox((0, 0), "Повернуть (R)", font=font_bold)
                 tw = bbox[2] - bbox[0]
                 tot_w = ico_rot.width + 5 + tw
-                sx = max(4, (145 - tot_w) // 2)
-                im.alpha_composite(ico_rot, (sx, 11))
-                d.text((sx + ico_rot.width + 5, 16), "Повернуть (R)", font=font_bold, fill=txt_col, anchor="lm")
+                sx = max(4, (146 - tot_w) // 2)
+                im.alpha_composite(ico_rot, (sx, (36 - ico_rot.height) // 2))
+                d.text((sx + ico_rot.width + 5, 17), "Повернуть (R)", font=font_bold, fill=txt_col, anchor="lm")
                 suffix = "" if state == "normal" else "_hov"
                 im.save(ROOT / f"btn_rotate{suffix}.png")
 
-        # Кнопка Очистить: 145x36 со скруглением radius=8 и hover состоянием
+        # Кнопка Очистить: 146x36 со скруглением radius=6 и hover состоянием
         if ico_clr:
             for state, bg, border, txt_col in [
                 ("normal", (35, 18, 24, 255), (120, 35, 45, 255), (248, 113, 113, 255)),
                 ("hov", (52, 22, 32, 255), (175, 48, 62, 255), (255, 135, 135, 255)),
             ]:
-                im = Image.new("RGBA", (145, 36), (0, 0, 0, 0))
+                im = Image.new("RGBA", (146, 36), (0, 0, 0, 0))
                 d = ImageDraw.Draw(im)
-                d.rounded_rectangle((0, 0, 144, 35), radius=8, fill=bg, outline=border, width=1)
+                d.rounded_rectangle((0, 0, 145, 35), radius=6, fill=bg, outline=border, width=1)
                 bbox = d.textbbox((0, 0), "Очистить", font=font_bold)
                 tw = bbox[2] - bbox[0]
                 tot_w = ico_clr.width + 5 + tw
-                sx = max(4, (145 - tot_w) // 2)
-                im.alpha_composite(ico_clr, (sx, 11))
-                d.text((sx + ico_clr.width + 5, 16), "Очистить", font=font_bold, fill=txt_col, anchor="lm")
+                sx = max(4, (146 - tot_w) // 2)
+                im.alpha_composite(ico_clr, (sx, (36 - ico_clr.height) // 2))
+                d.text((sx + ico_clr.width + 5, 17), "Очистить", font=font_bold, fill=txt_col, anchor="lm")
                 suffix = "" if state == "normal" else "_hov"
                 im.save(ROOT / f"btn_clear{suffix}.png")
 
-        # Кнопка Случайная расстановка: 300x36 со скруглением radius=8 и hover состоянием
+        # Кнопка Случайная расстановка: 300x36 со скруглением radius=6 и hover состоянием
         if ico_rnd:
             for state, bg, border, txt_col in [
                 ("normal", (22, 24, 28, 255), (46, 52, 64, 255), (240, 243, 248, 255)),
@@ -482,17 +488,17 @@ def build_assets():
             ]:
                 im = Image.new("RGBA", (300, 36), (0, 0, 0, 0))
                 d = ImageDraw.Draw(im)
-                d.rounded_rectangle((0, 0, 299, 35), radius=8, fill=bg, outline=border, width=1)
+                d.rounded_rectangle((0, 0, 299, 35), radius=6, fill=bg, outline=border, width=1)
                 bbox = d.textbbox((0, 0), "Случайная расстановка", font=font_bold)
                 tw = bbox[2] - bbox[0]
                 tot_w = ico_rnd.width + 5 + tw
                 sx = max(4, (300 - tot_w) // 2)
-                im.alpha_composite(ico_rnd, (sx, 11))
-                d.text((sx + ico_rnd.width + 5, 16), "Случайная расстановка", font=font_bold, fill=txt_col, anchor="lm")
+                im.alpha_composite(ico_rnd, (sx, (36 - ico_rnd.height) // 2))
+                d.text((sx + ico_rnd.width + 5, 17), "Случайная расстановка", font=font_bold, fill=txt_col, anchor="lm")
                 suffix = "" if state == "normal" else "_hov"
                 im.save(ROOT / f"btn_random{suffix}.png")
 
-        # Кнопка Начать бой: 300x42 со скруглением radius=8 и hover состоянием
+        # Кнопка Начать бой: 300x42 со скруглением radius=6 и hover состоянием
         if ico_play:
             for state, bg, border, txt_col in [
                 ("normal", (245, 245, 247, 255), (255, 255, 255, 255), (14, 15, 18, 255)),
@@ -500,13 +506,13 @@ def build_assets():
             ]:
                 im = Image.new("RGBA", (300, 42), (0, 0, 0, 0))
                 d = ImageDraw.Draw(im)
-                d.rounded_rectangle((0, 0, 299, 41), radius=8, fill=bg, outline=border, width=1)
+                d.rounded_rectangle((0, 0, 299, 41), radius=6, fill=bg, outline=border, width=1)
                 bbox = d.textbbox((0, 0), "Начать бой", font=font_bold)
                 tw = bbox[2] - bbox[0]
                 tot_w = ico_play.width + 5 + tw
                 sx = max(4, (300 - tot_w) // 2)
-                im.alpha_composite(ico_play, (sx, 13))
-                d.text((sx + ico_play.width + 5, 19), "Начать бой", font=font_bold, fill=txt_col, anchor="lm")
+                im.alpha_composite(ico_play, (sx, (42 - ico_play.height) // 2))
+                d.text((sx + ico_play.width + 5, 20), "Начать бой", font=font_bold, fill=txt_col, anchor="lm")
                 suffix = "" if state == "normal" else "_hov"
                 im.save(ROOT / f"btn_start{suffix}.png")
 
