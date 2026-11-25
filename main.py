@@ -403,11 +403,11 @@ class SeaBattleApp:
                     if self.fonts and "regular" in self.fonts:
                         dpg.bind_item_font(sub, self.fonts["regular"])
 
-                    dpg.add_spacer(height=18)
+                    dpg.add_spacer(height=6)
 
-                    with dpg.child_window(width=card_w, height=166, border=True, no_scrollbar=True):
+                    with dpg.child_window(width=card_w, height=184, border=True, no_scrollbar=True):
                         dpg.bind_item_theme(dpg.last_item(), "card_theme")
-                        dpg.add_spacer(height=2)
+                        dpg.add_spacer(height=4)
                         with dpg.group(horizontal=True, horizontal_spacing=10, indent=4):
                             if dpg.does_item_exist("ui_icon_multiplayer_accent"):
                                 dpg.add_image("ui_icon_multiplayer_accent", width=24, height=24)
@@ -421,7 +421,7 @@ class SeaBattleApp:
                             wrap=card_w - 40,
                             indent=4
                         )
-                        dpg.add_spacer(height=10)
+                        dpg.add_spacer(height=6)
                         with dpg.group(horizontal=True, horizontal_spacing=10, indent=4):
                             b2 = dpg.add_button(label="Создать онлайн комнату", width=220, height=38, callback=self.choose_multiplayer)
                             dpg.bind_item_theme(b2, "primary_button")
