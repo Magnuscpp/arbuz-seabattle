@@ -7,26 +7,28 @@
 <script src="https://unpkg.com/mqtt@5.10.4/dist/mqtt.min.js"></script>
 <style>
 :root {
-  --bg: #0b0e14;
-  --surface: #151821;
-  --surface-hover: #1c212d;
-  --border: #232838;
-  --border-active: #ffffff;
-  --text-main: #f8fafc;
-  --text-muted: #8a95a5;
-  --text-dim: #555e6d;
-  --cell-bg: #12151e;
-  --cell-border: #1f2535;
-  --cell-ship: #252e3e;
-  --cell-ship-border: #3b465c;
-  --cell-miss-dot: #64748b;
-  --cell-hit-bg: #3a181c;
-  --cell-hit-border: #7f1d1d;
-  --cell-hit-cross: #f87171;
-  --cell-sunk-bg: #4a141a;
-  --cell-sunk-border: #dc2626;
-  --green: #22c55e;
-  --red: #ef4444;
+  --bg: #0A0A0B;
+  --sidebar: #0D0E10;
+  --panel: #111214;
+  --widget: #181A1E;
+  --widget-hover: #22262C;
+  --widget-active: #2D323A;
+  --stroke: #22252C;
+  --widget-stroke: #2A2E36;
+  --text-main: #FFFFFF;
+  --text-hov: #C3CAD4;
+  --text-muted: #737D8C;
+  --coord-hl-bg: #37445C;
+  --coord-hl-border: #8CA5CD;
+  --cell-water-ray: #2E384A;
+  --cell-target-bg: #3C4B64;
+  --cell-ship-bg: #323844;
+  --cell-ship-ray: #444E60;
+  --cell-miss-bg: #101114;
+  --cell-hit-bg: #EA580C;
+  --cell-sunk-bg: #DC2626;
+  --green: #22C55E;
+  --red: #EF4444;
 }
 
 * {
@@ -39,7 +41,7 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
   background: var(--bg);
   color: var(--text-main);
   min-height: 100vh;
@@ -49,8 +51,8 @@ body {
 }
 
 header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  background: var(--sidebar);
+  border-bottom: 1px solid var(--stroke);
   padding: 12px 16px;
   display: flex;
   align-items: center;
@@ -69,29 +71,29 @@ header {
 .brand-icon {
   width: 28px;
   height: 28px;
-  color: #ffffff;
+  color: #FFFFFF;
   flex-shrink: 0;
 }
 
 .brand-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.5px;
-  line-height: 1.2;
+  letter-spacing: 0.6px;
+  line-height: 1.15;
 }
 
 .brand-sub {
   font-size: 10px;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
 }
 
 .room-chip {
-  background: #1c212d;
-  border: 1px solid var(--border);
+  background: var(--widget);
+  border: 1px solid var(--widget-stroke);
   border-radius: 6px;
-  padding: 4px 10px;
+  padding: 5px 10px;
   font-size: 12px;
   font-weight: 600;
   display: flex;
@@ -104,16 +106,16 @@ header {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--text-dim);
+  background: var(--text-muted);
 }
 
 .status-dot.online {
   background: var(--green);
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.65);
 }
 
 .status-dot.connecting {
-  background: #eab308;
+  background: #EAB308;
 }
 
 main {
@@ -121,17 +123,25 @@ main {
   max-width: 520px;
   width: 100%;
   margin: 0 auto;
-  padding: 12px 14px 24px;
+  padding: 14px 12px 28px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
 .card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
   padding: 14px;
+}
+
+.card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: 8px;
 }
 
 .card-title {
@@ -139,11 +149,16 @@ main {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 4px;
   color: var(--text-main);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+}
+
+.coord-hint {
+  font-size: 13px;
+  font-weight: 700;
+  color: #C8DCF5;
+  min-width: 56px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .card-desc {
@@ -153,66 +168,72 @@ main {
   line-height: 1.4;
 }
 
-/* Кнопки */
+/* Кнопки в точном стиле PC */
 button {
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
   border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface-hover);
+  border: 1px solid var(--widget-stroke);
+  background: var(--widget);
   color: var(--text-main);
-  padding: 9px 12px;
+  padding: 10px 12px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  transition: all 0.15s ease;
+  gap: 7px;
+  transition: background 0.12s ease, transform 0.1s ease, border-color 0.12s ease;
   touch-action: manipulation;
 }
 
 button:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
+  background: var(--widget-active);
 }
 
 button.primary {
-  background: #ffffff;
-  color: #0b0e14;
-  border-color: #ffffff;
+  background: #F5F5F7;
+  color: #0E0F12;
+  border-color: #FFFFFF;
+}
+
+button.primary:active {
+  background: #DCDCE4;
 }
 
 button.primary:disabled {
-  background: #232838;
-  color: #555e6d;
-  border-color: #232838;
+  background: var(--widget);
+  color: var(--text-muted);
+  border-color: var(--stroke);
   cursor: not-allowed;
   transform: none;
 }
 
 button.danger {
-  background: #231417;
-  border-color: #4a1d24;
-  color: #f87171;
+  background: #231218;
+  border-color: #78232D;
+  color: #F87171;
 }
 
-.btn-group {
+.btn-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  margin-bottom: 8px;
 }
 
-/* Экран входа в комнату */
+/* Ввод кода комнаты */
 .input-room {
   width: 100%;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--widget);
+  border: 1px solid var(--widget-stroke);
   border-radius: 6px;
   color: var(--text-main);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   text-align: center;
-  letter-spacing: 4px;
+  letter-spacing: 5px;
   padding: 12px;
   text-transform: uppercase;
   margin-bottom: 12px;
@@ -220,75 +241,10 @@ button.danger {
 
 .input-room:focus {
   outline: none;
-  border-color: #ffffff;
+  border-color: #FFFFFF;
 }
 
-/* Карточки кораблей */
-.ship-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-
-.ship-item {
-  background: #11141d;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 9px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.ship-item.active {
-  border-color: #ffffff;
-  background: #191d29;
-}
-
-.ship-item-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ship-item-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--text-muted);
-}
-
-.ship-item.active .ship-item-icon {
-  color: #ffffff;
-}
-
-.ship-item-name {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.ship-item-indicators {
-  display: flex;
-  gap: 5px;
-}
-
-.deck-sq {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-}
-
-.deck-sq.green {
-  background: var(--green);
-}
-
-.deck-sq.red {
-  background: var(--red);
-}
-
-/* Сетка игрового поля */
+/* Сетка игрового поля 1:1 как на ПК */
 .board-wrap {
   width: 100%;
   max-width: 420px;
@@ -300,10 +256,9 @@ button.danger {
   grid-template-columns: 24px repeat(10, 1fr);
   grid-template-rows: 24px repeat(10, 1fr);
   gap: 2px;
-  background: #181d28;
-  padding: 4px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  background: var(--panel);
+  padding: 2px;
+  touch-action: none;
 }
 
 .coord-label {
@@ -312,139 +267,291 @@ button.danger {
   justify-content: center;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-dim);
+  color: var(--text-muted);
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: background 0.08s ease, color 0.08s ease, border-color 0.08s ease;
+}
+
+.coord-label.hl {
+  background: var(--coord-hl-bg);
+  border-color: var(--coord-hl-border);
+  color: #FFFFFF;
 }
 
 .cell {
   aspect-ratio: 1;
-  background: var(--cell-bg);
-  border: 1px solid var(--cell-border);
+  background: var(--widget);
+  border: 1px solid var(--widget-stroke);
   border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
-  font-weight: bold;
+  font-size: 14px;
+  font-weight: 700;
+  color: #5A6473;
   cursor: pointer;
-  touch-action: manipulation;
-  transition: background 0.1s ease;
   position: relative;
 }
 
 .cell.ship {
-  background: var(--cell-ship);
-  border-color: var(--cell-ship-border);
+  background: var(--cell-ship-bg);
+  border-color: #FFFFFF;
+  color: #FFFFFF;
 }
 
-.cell.ship-part {
-  background: #323d52;
-  border-color: #556685;
+.cell.ray-water {
+  background: var(--cell-water-ray);
+  border-color: #7387A8;
+  color: #FFFFFF;
+}
+
+.cell.ray-ship {
+  background: var(--cell-ship-ray);
+  border-color: #FFFFFF;
+  color: #FFFFFF;
+}
+
+.cell.target {
+  background: var(--cell-target-bg);
+  border-color: #FFFFFF;
+  color: #FFFFFF;
 }
 
 .cell.miss {
-  background: #141822;
-}
-
-.cell.miss::after {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--cell-miss-dot);
+  background: var(--cell-miss-bg);
+  border-color: var(--widget-stroke);
+  color: #697382;
 }
 
 .cell.hit {
   background: var(--cell-hit-bg);
-  border-color: var(--cell-hit-border);
-  color: var(--cell-hit-cross);
+  border-color: var(--widget-stroke);
+  color: #FFFFFF;
 }
 
 .cell.sunk {
   background: var(--cell-sunk-bg);
-  border-color: var(--cell-sunk-border);
-  color: #ffffff;
+  border-color: var(--widget-stroke);
+  color: #FFFFFF;
 }
 
-/* Экран боя */
+/* Карточки кораблей в стиле PC */
+.section-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-hov);
+  letter-spacing: 0.4px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ship-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.ship-item {
+  background: var(--widget);
+  border: 1px solid var(--widget-stroke);
+  border-radius: 6px;
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.ship-item.active {
+  border: 2px solid #FFFFFF;
+  background: #22262E;
+}
+
+.ship-item-info {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.ship-item-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+}
+
+.ship-item.active .ship-item-icon {
+  color: #FFFFFF;
+}
+
+.ship-item-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ship-item-indicators {
+  display: flex;
+  gap: 4px;
+}
+
+.deck-sq {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+
+.deck-sq.green { background: var(--green); }
+.deck-sq.red { background: var(--red); }
+
+/* Виджет вращения корабля (как на ПК справа, на телефоне компактно под карточками) */
+.orient-panel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--widget);
+  border: 1px solid var(--widget-stroke);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.orient-panel:active {
+  background: var(--widget-hover);
+}
+
+.orient-box {
+  width: 82px;
+  height: 82px;
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.orient-ship-graphic {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.orient-deck {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: #323844;
+  border: 1.5px solid #FFFFFF;
+}
+
+.orient-bow {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 7px solid #FFFFFF;
+  margin-bottom: 1px;
+}
+
+.orient-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.orient-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
+}
+
+.orient-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.orient-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Баннер статуса боя */
 .turn-banner {
-  background: #191d29;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
   padding: 10px 14px;
   font-size: 13px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 
 .turn-banner.my-turn {
-  background: #ffffff;
-  color: #0b0e14;
-  border-color: #ffffff;
+  color: #FFFFFF;
+  border-color: #FFFFFF;
 }
 
 .turn-banner.enemy-turn {
-  background: #191d29;
-  color: var(--text-muted);
+  color: #F97316;
+  border-color: #4A2511;
 }
 
-.board-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.board-tab-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.board-tab-btn.active {
-  background: #ffffff;
-  color: #0b0e14;
-  border-color: #ffffff;
-}
-
-/* Всплывающее уведомление */
+/* Всплывающее уведомление (как Aternos Toast слева сверху) */
 #toast {
   position: fixed;
-  top: 60px;
-  left: 50%;
-  transform: translateX(-50%) translateY(-20px);
-  background: #ffffff;
-  color: #0b0e14;
-  padding: 9px 18px;
-  border-radius: 6px;
+  top: 62px;
+  left: 14px;
+  transform: translateX(-340px);
+  width: 290px;
+  background: rgba(16, 17, 20, 0.96);
+  border: 1px solid #373C48;
+  color: #FFFFFF;
+  padding: 10px 14px;
+  border-radius: 4px;
   font-size: 13px;
   font-weight: 600;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
   opacity: 0;
   pointer-events: none;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
   z-index: 1000;
-  max-width: 90%;
-  text-align: center;
 }
 
 #toast.show {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(0);
+}
+
+.toast-head {
+  font-size: 11px;
+  color: #D7E1EE;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
 }
 
 /* Модальное окно окончания игры */
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(11, 14, 20, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -453,35 +560,28 @@ button.danger {
 }
 
 .modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  padding: 22px;
   width: 100%;
   max-width: 360px;
   text-align: center;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.6);
 }
 
 .modal-title {
   font-size: 20px;
   font-weight: 800;
-  letter-spacing: 0.5px;
   margin-bottom: 8px;
 }
 
-.modal-title.win {
-  color: #ffffff;
-}
-
-.modal-title.loss {
-  color: var(--red);
-}
+.modal-title.win { color: #FFFFFF; }
+.modal-title.loss { color: #F87171; }
 
 .modal-msg {
   font-size: 13px;
-  color: var(--text-muted);
-  margin-bottom: 20px;
+  color: var(--text-hov);
+  margin-bottom: 18px;
   line-height: 1.5;
 }
 
@@ -499,7 +599,7 @@ button.danger {
     </svg>
     <div>
       <div class="brand-title">SEA BATTLE</div>
-      <div class="brand-sub">TACTICAL EDITION</div>
+      <div class="brand-sub">TACTICAL IMGUI EDITION</div>
     </div>
   </div>
 
@@ -512,74 +612,98 @@ button.danger {
 <main>
   <!-- Экран 1: Вход в комнату -->
   <section id="screenJoin" class="card">
-    <div class="card-title">Подключение к матчу</div>
-    <div class="card-desc">Введите 5-значный код комнаты, отображаемый на экране ПК</div>
+    <div class="card-title" style="margin-bottom: 6px;">Подключение к матчу</div>
+    <div class="card-desc">Введите 5-значный код комнаты с экрана ПК или откройте ссылку из QR-кода</div>
     <input id="inputRoomCode" class="input-room" maxlength="5" placeholder="КОД">
-    <button id="btnConnect" class="primary" style="width: 100%; padding: 13px;">Подключиться</button>
+    <button id="btnConnect" class="primary" style="width: 100%; padding: 12px;">Подключиться</button>
   </section>
 
-  <!-- Экран 2: Расстановка флота -->
-  <section id="screenPlacement" class="card hidden">
-    <div class="card-title">
-      <span>Расстановка флота</span>
-      <span id="placementCount" style="font-size: 11px; color: var(--text-muted); font-weight: 500;">0/10</span>
-    </div>
-    <div class="card-desc">Выберите корабль и клетку. Повторный клик убирает корабль.</div>
+  <!-- Экран 2: Расстановка флота (вертикальная прокрутка как на ПК сверху вниз) -->
+  <div id="screenPlacement" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
+    <section class="card">
+      <div class="card-header-row">
+        <span class="card-title">ВАШЕ ПОЛЕ</span>
+        <span id="placementCoordHint" class="coord-hint"></span>
+      </div>
+      <div class="card-desc" style="margin-bottom: 10px;">Водите пальцем для прицела. Нажмите на клетку, чтобы поставить или убрать корабль.</div>
+      <div class="board-wrap">
+        <div id="gridPlacement" class="board-grid"></div>
+      </div>
+    </section>
 
-    <!-- Выбор корабля -->
-    <div class="ship-list" id="shipSelector">
-      <!-- Генерируется динамически -->
-    </div>
+    <section class="card">
+      <div class="section-label">
+        <span>ВЫБОР КОРАБЛЯ</span>
+        <span id="placementCount" style="color: var(--text-muted);">0/10</span>
+      </div>
 
-    <!-- Кнопки управления расстановкой -->
-    <div class="btn-group" style="margin-bottom: 12px;">
-      <button id="btnRotate">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.83 6.72 2.24L21 8"/><polyline points="21 3 21 8 16 8"/></svg>
-        <span id="rotateLabel">Гор.</span>
-      </button>
-      <button id="btnAuto">
+      <div class="ship-list" id="shipSelector"></div>
+
+      <!-- Виджет ориентации: нажатие плавно крутит корабль на 90° -->
+      <div id="orientWidget" class="orient-panel" title="Нажмите, чтобы повернуть корабль">
+        <div class="orient-box">
+          <div id="orientShipGraphic" class="orient-ship-graphic"></div>
+        </div>
+        <div class="orient-meta">
+          <div class="orient-title">РАСПОЛОЖЕНИЕ</div>
+          <div id="orientText" class="orient-val">Горизонтальное</div>
+          <div class="orient-hint">Нажмите на корабль для поворота</div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button id="btnRotate">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.83 6.72 2.24L21 8"/><polyline points="21 3 21 8 16 8"/></svg>
+          <span>Повернуть</span>
+        </button>
+        <button id="btnClear" class="danger">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <span>Очистить</span>
+        </button>
+      </div>
+      <button id="btnAuto" style="width: 100%; margin-bottom: 8px;">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
-        <span>Авто</span>
+        <span>Случайная расстановка</span>
       </button>
-    </div>
+      <button id="btnReady" class="primary" style="width: 100%; padding: 12px;" disabled>Начать бой</button>
+    </section>
+  </div>
 
-    <!-- Сетка расстановки -->
-    <div class="board-wrap">
-      <div id="gridPlacement" class="board-grid"></div>
-    </div>
-
-    <div style="display: flex; gap: 8px; margin-top: 12px;">
-      <button id="btnClear" class="danger" style="flex: 1;">Очистить</button>
-      <button id="btnReady" class="primary" style="flex: 2;" disabled>Готов к бою</button>
-    </div>
-  </section>
-
-  <!-- Экран 3: Бой -->
-  <section id="screenBattle" class="card hidden">
-    <div id="turnBanner" class="turn-banner enemy-turn" style="margin-bottom: 12px;">
+  <!-- Экран 3: Бой (два поля друг под другом, как на ПК рядом) -->
+  <div id="screenBattle" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
+    <div id="turnBanner" class="turn-banner enemy-turn">
       <span id="turnText">Ожидание начала боя...</span>
-      <span id="fleetCounters" style="font-size: 11px; opacity: 0.8;">10 vs 10</span>
+      <span id="fleetCounters" style="font-size: 12px; opacity: 0.9;">10 vs 10</span>
     </div>
 
-    <!-- Вкладки полей -->
-    <div class="board-tabs">
-      <button id="tabEnemy" class="board-tab-btn active">Поле противника (ПК)</button>
-      <button id="tabOwn" class="board-tab-btn">Ваш флот</button>
-    </div>
+    <section class="card">
+      <div class="card-header-row">
+        <span class="card-title">ПОЛЕ ПРОТИВНИКА</span>
+        <span id="enemyAliveText" style="font-size: 12px; color: #F87171; font-weight: 600;">Кораблей: 10</span>
+        <span id="enemyCoordHint" class="coord-hint"></span>
+      </div>
+      <div class="board-wrap">
+        <div id="gridEnemy" class="board-grid"></div>
+      </div>
+    </section>
 
-    <!-- Поле противника -->
-    <div id="enemyBoardView" class="board-wrap">
-      <div id="gridEnemy" class="board-grid"></div>
-    </div>
-
-    <!-- Собственное поле -->
-    <div id="ownBoardView" class="board-wrap hidden">
-      <div id="gridOwnBattle" class="board-grid"></div>
-    </div>
-  </section>
+    <section class="card">
+      <div class="card-header-row">
+        <span class="card-title">ВАШ ФЛОТ</span>
+        <span id="ownAliveText" style="font-size: 12px; color: #F0F3F8; font-weight: 600;">Кораблей: 10</span>
+        <span id="ownCoordHint" class="coord-hint"></span>
+      </div>
+      <div class="board-wrap">
+        <div id="gridOwnBattle" class="board-grid"></div>
+      </div>
+    </section>
+  </div>
 </main>
 
-<div id="toast"></div>
+<div id="toast">
+  <div class="toast-head">Уведомление</div>
+  <div id="toastBody"></div>
+</div>
 
 <!-- Модальное окно результатов -->
 <div id="modalOverlay" class="modal-overlay hidden">
@@ -594,24 +718,72 @@ button.danger {
 const LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К'];
 const SIZE = 10;
 const FLEET_CONFIG = {4: 1, 3: 2, 2: 3, 1: 4};
-const SHIP_NAMES = {4: 'Линкор', 3: 'Крейсер', 2: 'Эсминец', 1: 'Катер'};
+const SHIP_NAMES = {4: 'Линкор (4 палубы)', 3: 'Крейсер (3 палубы)', 2: 'Эсминец (2 палубы)', 1: 'Катер (1 палуба)'};
 
 let currentRoom = '';
 let client = null;
+let orientAngleIdx = 1; // 1 = 90° (H), как на ПК
 let currentOrientation = 'H';
 let selectedSize = 4;
 let ships = [];
-let ownGridData = Array(100).fill(0); // 0: empty, 1: ship, 2: miss, 3: hit, 4: sunk
+let ownGridData = Array(100).fill(0);
 let enemyGridData = Array(100).fill(0);
 let myTurn = false;
 let gameOver = false;
 let enemySunkCount = 0;
+let toastTimer = null;
+
+const urlParams = new URLSearchParams(window.location.search);
+const roomFromUrl = (urlParams.get('room') || '').trim().toUpperCase();
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  document.getElementById('toastBody').textContent = msg;
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  if (navigator.vibrate) {
+    try { navigator.vibrate(25); } catch (e) {}
+  }
+}
+
+function coordStr(r, c) {
+  return `${LETTERS[c]}-${r + 1}`;
+}
+
+function updateOrientWidget() {
+  const g = document.getElementById('orientShipGraphic');
+  if (!g) return;
+  g.innerHTML = '';
+  const bow = document.createElement('div');
+  bow.className = 'orient-bow';
+  g.appendChild(bow);
+  for (let i = 0; i < selectedSize; i++) {
+    const d = document.createElement('div');
+    d.className = 'orient-deck';
+    g.appendChild(d);
+  }
+  g.style.transform = `rotate(${orientAngleIdx * 90}deg)`;
+  document.getElementById('orientText').textContent = currentOrientation === 'H' ? 'Горизонтальное' : 'Вертикальное';
+}
+
+function rotateShip() {
+  orientAngleIdx += 1;
+  const mod = orientAngleIdx % 4;
+  currentOrientation = (mod === 0 || mod === 2) ? 'V' : 'H';
+  updateOrientWidget();
+  showToast(`Расположение: ${currentOrientation === 'H' ? 'Горизонтальное' : 'Вертикальное'}`);
+}
 
 function updateFleetCounters() {
   const ownAlive = ships.filter(sh => !sh.cells.every(([cr, cc]) => ownGridData[cr * SIZE + cc] === 4)).length;
   const enemyAlive = Math.max(0, 10 - enemySunkCount);
-  const el = document.getElementById('fleetCounters');
-  if (el) el.textContent = `${ownAlive} vs ${enemyAlive}`;
+  const fc = document.getElementById('fleetCounters');
+  if (fc) fc.textContent = `${ownAlive} vs ${enemyAlive}`;
+  const oa = document.getElementById('ownAliveText');
+  if (oa) oa.textContent = `Кораблей: ${ownAlive}`;
+  const ea = document.getElementById('enemyAliveText');
+  if (ea) ea.textContent = `Кораблей: ${enemyAlive}`;
 }
 
 function resetForNewGame() {
@@ -624,84 +796,176 @@ function resetForNewGame() {
   myTurn = false;
   gameOver = false;
   enemySunkCount = 0;
+  selectedSize = 4;
   updatePlacementView();
   updateFleetCounters();
   sendMessage({action: 'restart'});
   showToast('Расставьте флот для новой игры');
 }
 
-// URL параметры
-const urlParams = new URLSearchParams(window.location.search);
-const roomFromUrl = (urlParams.get('room') || '').trim().toUpperCase();
-
-function showToast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2200);
-  if (navigator.vibrate) {
-    try { navigator.vibrate(30); } catch(e){}
-  }
-}
-
-// Построение DOM сетки с координатами А..К и 1..10
-function buildGridDOM(container, cellData, onCellClick) {
+// Построение сетки 1:1 с ПК + интерактивное перекрестие для мыши и пальца
+function buildGridDOM(container, cellData, hintId, onCellClick) {
   container.innerHTML = '';
-  // Угловая клетка
+  const colLabels = [];
+  const rowLabels = [];
+  const cellEls = Array.from({length: SIZE}, () => Array(SIZE));
+
   const corner = document.createElement('div');
   corner.className = 'coord-label';
   container.appendChild(corner);
 
-  // Буквы А..К
   for (let c = 0; c < SIZE; c++) {
     const lbl = document.createElement('div');
     lbl.className = 'coord-label';
     lbl.textContent = LETTERS[c];
     container.appendChild(lbl);
+    colLabels.push(lbl);
   }
 
-  // Строки
   for (let r = 0; r < SIZE; r++) {
     const numLbl = document.createElement('div');
     numLbl.className = 'coord-label';
     numLbl.textContent = r + 1;
     container.appendChild(numLbl);
+    rowLabels.push(numLbl);
 
     for (let c = 0; c < SIZE; c++) {
-      const idx = r * SIZE + c;
-      const val = cellData[idx];
+      const val = cellData[r * SIZE + c];
       const cell = document.createElement('div');
       cell.className = 'cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      cell.dataset.val = val;
 
-      if (val === 1) cell.classList.add('ship');
-      else if (val === 2) cell.classList.add('miss');
-      else if (val === 3) {
+      if (val === 1) {
+        cell.classList.add('ship');
+        cell.textContent = '■';
+      } else if (val === 2) {
+        cell.classList.add('miss');
+        cell.textContent = '•';
+      } else if (val === 3) {
         cell.classList.add('hit');
-        cell.textContent = '✕';
-      }
-      else if (val === 4) {
+        cell.textContent = '×';
+      } else if (val === 4) {
         cell.classList.add('sunk');
-        cell.textContent = '✕';
+        cell.textContent = '×';
       }
 
-      if (onCellClick) {
-        cell.onclick = (e) => {
-          e.preventDefault();
-          onCellClick(r, c);
-        };
-      }
       container.appendChild(cell);
+      cellEls[r][c] = cell;
     }
   }
+
+  let activeHover = null;
+
+  function clearCrosshair() {
+    if (!activeHover) return;
+    const [pr, pc] = activeHover;
+    colLabels[pc].classList.remove('hl');
+    rowLabels[pr].classList.remove('hl');
+    for (let ci = 0; ci < SIZE; ci++) {
+      cellEls[pr][ci].classList.remove('ray-water', 'ray-ship', 'target');
+    }
+    for (let ri = 0; ri < SIZE; ri++) {
+      cellEls[ri][pc].classList.remove('ray-water', 'ray-ship', 'target');
+    }
+    const hint = document.getElementById(hintId);
+    if (hint) hint.textContent = '';
+    activeHover = null;
+  }
+
+  function applyCrosshair(r, c) {
+    if (activeHover && activeHover[0] === r && activeHover[1] === c) return;
+    clearCrosshair();
+    activeHover = [r, c];
+
+    colLabels[c].classList.add('hl');
+    rowLabels[r].classList.add('hl');
+
+    for (let ci = 0; ci < c; ci++) {
+      const v = Number(cellEls[r][ci].dataset.val);
+      if (v === 0) cellEls[r][ci].classList.add('ray-water');
+      else if (v === 1) cellEls[r][ci].classList.add('ray-ship');
+    }
+    for (let ri = 0; ri < r; ri++) {
+      const v = Number(cellEls[ri][c].dataset.val);
+      if (v === 0) cellEls[ri][c].classList.add('ray-water');
+      else if (v === 1) cellEls[ri][c].classList.add('ray-ship');
+    }
+    const targetVal = Number(cellEls[r][c].dataset.val);
+    if (targetVal === 0) {
+      cellEls[r][c].classList.add('target');
+    }
+
+    const hint = document.getElementById(hintId);
+    if (hint) hint.textContent = `[ ${coordStr(r, c)} ]`;
+  }
+
+  function cellAtPoint(clientX, clientY) {
+    const el = document.elementFromPoint(clientX, clientY);
+    if (!el || !el.classList || !el.classList.contains('cell') || !container.contains(el)) return null;
+    return [Number(el.dataset.r), Number(el.dataset.c)];
+  }
+
+  let isTouching = false;
+
+  container.onmousemove = (e) => {
+    if (isTouching) return;
+    const pos = cellAtPoint(e.clientX, e.clientY);
+    if (pos) applyCrosshair(pos[0], pos[1]);
+    else clearCrosshair();
+  };
+
+  container.onmouseleave = () => {
+    if (!isTouching) clearCrosshair();
+  };
+
+  container.onclick = (e) => {
+    if (!onCellClick) return;
+    const pos = cellAtPoint(e.clientX, e.clientY);
+    if (pos) onCellClick(pos[0], pos[1]);
+  };
+
+  container.ontouchstart = (e) => {
+    isTouching = true;
+    const t = e.touches[0];
+    if (!t) return;
+    const pos = cellAtPoint(t.clientX, t.clientY);
+    if (pos) applyCrosshair(pos[0], pos[1]);
+  };
+
+  container.ontouchmove = (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    if (!t) return;
+    const pos = cellAtPoint(t.clientX, t.clientY);
+    if (pos) applyCrosshair(pos[0], pos[1]);
+    else clearCrosshair();
+  };
+
+  container.ontouchend = (e) => {
+    const t = e.changedTouches[0];
+    const pos = t ? cellAtPoint(t.clientX, t.clientY) : activeHover;
+    clearCrosshair();
+    if (pos && onCellClick) {
+      e.preventDefault();
+      onCellClick(pos[0], pos[1]);
+    }
+    setTimeout(() => { isTouching = false; }, 120);
+  };
+
+  container.ontouchcancel = () => {
+    clearCrosshair();
+    isTouching = false;
+  };
 }
 
-// Карточки выбора кораблей
 function updateShipSelectorUI() {
   const container = document.getElementById('shipSelector');
   container.innerHTML = '';
 
   const remaining = getRemainingShips();
-  let totalShipsPlaced = ships.length;
+  const totalShipsPlaced = ships.length;
   document.getElementById('placementCount').textContent = `${totalShipsPlaced}/10`;
 
   [4, 3, 2, 1].forEach(size => {
@@ -715,6 +979,7 @@ function updateShipSelectorUI() {
     item.onclick = () => {
       selectedSize = size;
       updateShipSelectorUI();
+      updateOrientWidget();
     };
 
     const left = document.createElement('div');
@@ -723,7 +988,7 @@ function updateShipSelectorUI() {
       <svg class="ship-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M4 17.5L3 12L12 9L21 12L20 17.5M5 11.3333V7C5 5.89543 5.89543 5 7 5H17C18.1046 5 19 5.89543 19 7V11.3333M10 5V3C10 2.44772 10.4477 2 11 2H13C13.5523 2 14 2.44772 14 3V5M2 21C3 22 6 22 8 20C10 22 14 22 16 20C18 22 21 22 22 21"/>
       </svg>
-      <span class="ship-item-name">${SHIP_NAMES[size]} (${size})</span>
+      <span class="ship-item-name">${SHIP_NAMES[size]}</span>
     `;
 
     const right = document.createElement('div');
@@ -742,7 +1007,7 @@ function updateShipSelectorUI() {
   const btnReady = document.getElementById('btnReady');
   if (totalShipsPlaced === 10) {
     btnReady.disabled = false;
-    btnReady.textContent = 'Готов к бою ✓';
+    btnReady.textContent = 'Начать бой ✓';
   } else {
     btnReady.disabled = true;
     btnReady.textContent = `Расставьте корабли (${totalShipsPlaced}/10)`;
@@ -788,7 +1053,8 @@ function onPlacementCellClick(r, c) {
     if (existing) {
       existing.cells.forEach(([cr, cc]) => ownGridData[cr * SIZE + cc] = 0);
       ships = ships.filter(s => s !== existing);
-      showToast('Корабль убран');
+      selectedSize = existing.size;
+      showToast('Корабль убран с поля');
       updatePlacementView();
       return;
     }
@@ -796,29 +1062,38 @@ function onPlacementCellClick(r, c) {
 
   const remaining = getRemainingShips();
   if (remaining[selectedSize] <= 0) {
-    showToast(`Все корабли типа «${SHIP_NAMES[selectedSize]}» уже выставлены`);
+    showToast(`Все корабли (${selectedSize} палуб) уже расставлены`);
     return;
   }
 
   const cells = getShipCells(r, c, selectedSize, currentOrientation);
   if (!canPlaceShip(cells)) {
-    showToast('Нельзя поставить: касание или выход за пределы');
+    showToast('Нельзя поставить: касание или выход за край');
     return;
   }
 
   cells.forEach(([cr, cc]) => ownGridData[cr * SIZE + cc] = 1);
   ships.push({size: selectedSize, cells});
+  showToast(`Корабль (${selectedSize} палуб) установлен`);
+
+  const remAfter = getRemainingShips();
+  if (remAfter[selectedSize] <= 0) {
+    const nextSz = [4, 3, 2, 1].find(sz => remAfter[sz] > 0);
+    if (nextSz) selectedSize = nextSz;
+  }
   updatePlacementView();
 }
 
 function updatePlacementView() {
-  buildGridDOM(document.getElementById('gridPlacement'), ownGridData, onPlacementCellClick);
+  buildGridDOM(document.getElementById('gridPlacement'), ownGridData, 'placementCoordHint', onPlacementCellClick);
   updateShipSelectorUI();
+  updateOrientWidget();
 }
 
 function clearPlacement() {
   ownGridData.fill(0);
   ships = [];
+  selectedSize = 4;
   updatePlacementView();
   showToast('Поле очищено');
 }
@@ -848,10 +1123,9 @@ function autoPlaceFleet() {
     if (ok) break;
   }
   updatePlacementView();
-  showToast('Случайная расстановка готова');
+  showToast('Флот расставлен автоматически!');
 }
 
-// Сетевое подключение MQTT с автопереключением брокера
 function connectToRoom(roomCode) {
   currentRoom = roomCode.trim().toUpperCase();
   if (!currentRoom) return showToast('Введите код комнаты');
@@ -879,7 +1153,7 @@ function connectToRoom(roomCode) {
       dot.className = 'status-dot online';
       client.subscribe(`seabattle/rooms/${currentRoom}/phone`);
       sendMessage({action: 'phone_join'});
-      showToast('Подключено к брокеру');
+      showToast('Подключено к комнате ' + currentRoom);
 
       document.getElementById('screenJoin').classList.add('hidden');
       document.getElementById('screenPlacement').classList.remove('hidden');
@@ -888,15 +1162,14 @@ function connectToRoom(roomCode) {
 
     client.on('message', (_, buf) => {
       try {
-        const msg = JSON.parse(buf.toString());
-        handleServerMessage(msg);
-      } catch(e) {}
+        handleServerMessage(JSON.parse(buf.toString()));
+      } catch (e) {}
     });
 
     client.on('error', () => {
       if (brokerIdx < brokers.length - 1) {
         brokerIdx++;
-        try { client.end(true); } catch(e){}
+        try { client.end(true); } catch (e) {}
         setTimeout(tryConnect, 500);
       }
     });
@@ -921,20 +1194,21 @@ function onReadyClick() {
   document.getElementById('screenPlacement').classList.add('hidden');
   document.getElementById('screenBattle').classList.remove('hidden');
 
-  buildGridDOM(document.getElementById('gridEnemy'), enemyGridData, shootEnemyCell);
-  buildGridDOM(document.getElementById('gridOwnBattle'), ownGridData, null);
+  buildGridDOM(document.getElementById('gridEnemy'), enemyGridData, 'enemyCoordHint', shootEnemyCell);
+  buildGridDOM(document.getElementById('gridOwnBattle'), ownGridData, 'ownCoordHint', null);
+  updateFleetCounters();
 
-  setTurnState(false, 'Ожидание хода с ПК...');
+  setTurnState(false, 'Ожидание начала боя с ПК...');
   showToast('Вы готовы! Ожидание ПК...');
 }
 
 function shootEnemyCell(r, c) {
   if (!myTurn || gameOver) return;
   const idx = r * SIZE + c;
-  if (enemyGridData[idx] !== 0) return; // Уже стреляли
+  if (enemyGridData[idx] !== 0) return;
 
   myTurn = false;
-  setTurnState(false, 'Выстрел отправлен...');
+  setTurnState(false, `Выстрел ${coordStr(r, c)}...`);
   sendMessage({action: 'shot', r, c});
 }
 
@@ -945,10 +1219,10 @@ function setTurnState(isMine, label) {
 
   if (isMine) {
     banner.className = 'turn-banner my-turn';
-    txt.textContent = label || 'ВАШ ХОД — Стреляйте!';
+    txt.textContent = label || 'Ваш ход — выберите клетку на поле противника';
   } else {
     banner.className = 'turn-banner enemy-turn';
-    txt.textContent = label || 'ХОД ПРОТИВНИКА (ПК)...';
+    txt.textContent = label || 'Ход ПК (ожидание выстрела...)';
   }
 }
 
@@ -992,7 +1266,7 @@ function handleServerMessage(m) {
 
   if (m.action === 'game_start') {
     myTurn = !!m.phone_turn;
-    setTurnState(myTurn, myTurn ? 'ВАШ ХОД — Стреляйте!' : 'Ход противника на ПК');
+    setTurnState(myTurn, myTurn ? 'Ваш ход — выберите клетку!' : 'Ход ПК (ожидание выстрела...)');
     showToast('Бой начался!');
   }
 
@@ -1006,19 +1280,19 @@ function handleServerMessage(m) {
     }
 
     myTurn = (m.res !== 'miss');
-    buildGridDOM(document.getElementById('gridEnemy'), enemyGridData, shootEnemyCell);
-    setTurnState(myTurn, myTurn ? 'ВАШ ХОД (Попадание!)' : 'Ход противника на ПК');
+    buildGridDOM(document.getElementById('gridEnemy'), enemyGridData, 'enemyCoordHint', shootEnemyCell);
+    setTurnState(myTurn, myTurn ? 'Ваш ход (Попадание!)' : 'Ход ПК (ожидание выстрела...)');
 
-    if (m.res === 'miss') showToast(`Промах (${LETTERS[m.c]}${m.r + 1})`);
-    else if (m.res === 'hit') showToast(`Попадание! (${LETTERS[m.c]}${m.r + 1})`);
+    if (m.res === 'miss') showToast(`Выстрел ${coordStr(m.r, m.c)}: промах`);
+    else if (m.res === 'hit') showToast(`Выстрел ${coordStr(m.r, m.c)}: попадание`);
     else if (m.res === 'sunk') {
       enemySunkCount++;
-      showToast(`Корабль противника потоплен!`);
+      showToast(`Выстрел ${coordStr(m.r, m.c)}: корабль потоплен`);
     }
     updateFleetCounters();
 
     if (m.all_sunk) {
-      showResultModal(true, 'ПОБЕДА!', 'Вы потопили весь флот противника на ПК!');
+      showResultModal(true, 'ПОБЕДА!', 'Флот противника полностью уничтожен.');
     }
   }
 
@@ -1028,71 +1302,53 @@ function handleServerMessage(m) {
     let surrounding = [];
 
     if (ownGridData[idx] === 1) {
-      ownGridData[idx] = 3; // hit
+      ownGridData[idx] = 3;
       const s = ships.find(sh => sh.cells.some(([cr, cc]) => cr === m.r && cc === m.c));
       if (s && s.cells.every(([cr, cc]) => ownGridData[cr * SIZE + cc] === 3)) {
         res = 'sunk';
         s.cells.forEach(([cr, cc]) => ownGridData[cr * SIZE + cc] = 4);
         surrounding = getSurroundingCells(s.cells);
+        surrounding.forEach(([sr, sc]) => {
+          if (ownGridData[sr * SIZE + sc] === 0) ownGridData[sr * SIZE + sc] = 2;
+        });
       } else {
         res = 'hit';
       }
     } else if (ownGridData[idx] === 0) {
-      ownGridData[idx] = 2; // miss
+      ownGridData[idx] = 2;
     }
 
     const allSunk = ships.every(sh => sh.cells.every(([cr, cc]) => ownGridData[cr * SIZE + cc] === 4));
     sendMessage({action: 'defense_result', r: m.r, c: m.c, res, surrounding, all_sunk: allSunk});
-    buildGridDOM(document.getElementById('gridOwnBattle'), ownGridData, null);
+    buildGridDOM(document.getElementById('gridOwnBattle'), ownGridData, 'ownCoordHint', null);
     updateFleetCounters();
 
     myTurn = (res === 'miss');
-    setTurnState(myTurn, myTurn ? 'ВАШ ХОД — Стреляйте!' : 'Ход противника на ПК');
+    setTurnState(myTurn, myTurn ? 'Ваш ход — выберите клетку!' : 'Ход ПК (ожидание выстрела...)');
 
     if (allSunk) {
-      showResultModal(false, 'ПОРАЖЕНИЕ!', 'Ваш флот был уничтожен игроком на ПК.');
+      showResultModal(false, 'ПОРАЖЕНИЕ!', 'Ваш флот уничтожен игроком на ПК.');
     }
   }
 
   if (m.action === 'game_over') {
     if (m.winner === 'phone') {
-      showResultModal(true, 'ПОБЕДА!', 'Вы победили! Флот противника уничтожен.');
+      showResultModal(true, 'ПОБЕДА!', 'Флот противника полностью уничтожен.');
     } else {
-      showResultModal(false, 'ПОРАЖЕНИЕ!', 'Игрок на ПК уничтожил ваш флот.');
+      showResultModal(false, 'ПОРАЖЕНИЕ!', 'Ваш флот уничтожен игроком на ПК.');
     }
   }
 }
 
-// Привязка кнопок
 document.getElementById('btnConnect').onclick = () => {
-  const code = document.getElementById('inputRoomCode').value;
-  connectToRoom(code);
+  connectToRoom(document.getElementById('inputRoomCode').value);
 };
-
-document.getElementById('btnRotate').onclick = () => {
-  currentOrientation = (currentOrientation === 'H' ? 'V' : 'H');
-  document.getElementById('rotateLabel').textContent = (currentOrientation === 'H' ? 'Гор.' : 'Верт.');
-};
-
+document.getElementById('orientWidget').onclick = rotateShip;
+document.getElementById('btnRotate').onclick = rotateShip;
 document.getElementById('btnAuto').onclick = autoPlaceFleet;
 document.getElementById('btnClear').onclick = clearPlacement;
 document.getElementById('btnReady').onclick = onReadyClick;
 
-document.getElementById('tabEnemy').onclick = () => {
-  document.getElementById('tabEnemy').classList.add('active');
-  document.getElementById('tabOwn').classList.remove('active');
-  document.getElementById('enemyBoardView').classList.remove('hidden');
-  document.getElementById('ownBoardView').classList.add('hidden');
-};
-
-document.getElementById('tabOwn').onclick = () => {
-  document.getElementById('tabOwn').classList.add('active');
-  document.getElementById('tabEnemy').classList.remove('active');
-  document.getElementById('ownBoardView').classList.remove('hidden');
-  document.getElementById('enemyBoardView').classList.add('hidden');
-};
-
-// Авто-вход, если перешли по ссылке из QR-кода
 if (roomFromUrl) {
   document.getElementById('inputRoomCode').value = roomFromUrl;
   connectToRoom(roomFromUrl);
