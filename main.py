@@ -1,13 +1,12 @@
-"""Sea Battle — настольный клиент Dear PyGui в дизайне menu_ready_build (Aternos ImGui Dark).
+"""Sea Battle - настольный клиент Dear PyGui.
 Включает:
-- Минималистичную монохромную палитру (белый, серый, черный) в стиле Apple / Dear ImGui Aternos
+- Минималистичную монохромную палитру (белый, серый, черный)
 - Векторную иконку корабля из boat.svg
-- Идеально выровненный бренд-хедер в сайдбаре
-- 200px табы с 16-кадровой плавной интерполяцией (ImLerp) без обрезки текста
-- Карточки выбора кораблей с реальными SVG-иконками кораблей
-- Просторные карточки без скроллбаров («без крутилок»)
-- Четкий, плотный русский шрифт Segoe UI Semibold
-- Чистый заголовок окна без кракозябр
+- Выровненный бренд-хедер в сайдбаре
+- 200px табы с 16-кадровой плавной анимацией без обрезки текста
+- Карточки выбора кораблей с иконками
+- Просторные карточки без лишних скроллбаров
+- Четкий русский шрифт Segoe UI Semibold
 """
 import json
 import queue
@@ -62,6 +61,7 @@ class SeaBattleApp:
         self.relay.on_error = lambda err: self.events.put(("relay_error", err))
         self.phone_ready = False
         self.room_locked = False
+        self.enemy_sunk_count = 0
         self._last_heartbeat_sent = 0.0
         self.view_width, self.view_height = 1200, 740
         self.current_page = "home"
@@ -434,10 +434,10 @@ class SeaBattleApp:
                             if dpg.does_item_exist("ui_icon_multiplayer_accent"):
                                 dpg.add_image("ui_icon_multiplayer_accent", width=28, height=28)
                             with dpg.group():
-                                t2 = dpg.add_text("Кроссплатформенный мультиплеер", color=(255, 255, 255))
+                                t2 = dpg.add_text("Сетевая игра с другом", color=(255, 255, 255))
                                 if self.fonts and "semibold" in self.fonts:
                                     dpg.bind_item_font(t2, self.fonts["semibold"])
-                                dpg.add_text("Подключение смартфона через сканирование QR-кода по протоколу MQTT.", color=(140, 150, 168), wrap=card_w - 65)
+                                dpg.add_text("Подключение второго игрока по коду комнаты или QR-коду.", color=(140, 150, 168), wrap=card_w - 65)
                         dpg.add_spacer(height=6)
                         b2 = dpg.add_button(label="Создать онлайн комнату", width=240, height=36, callback=self.choose_multiplayer)
                         dpg.bind_item_theme(b2, "secondary_button")
@@ -475,7 +475,7 @@ class SeaBattleApp:
                     with dpg.group(horizontal=True):
                         dpg.add_text("ВАШ ФЛОТ", indent=8)
                         dpg.add_spacer(width=16)
-                        dpg.add_text("Кораблей: —", tag="player_alive", color=(240, 243, 248))
+                        dpg.add_text("Кораблей: 0", tag="player_alive", color=(240, 243, 248))
                         dpg.add_spacer(width=16)
                         t_pl_hint = dpg.add_text("", tag="player_coord_hint", color=(200, 220, 245))
                         if self.fonts and "semibold" in self.fonts:
@@ -489,7 +489,7 @@ class SeaBattleApp:
                     with dpg.group(horizontal=True):
                         dpg.add_text("ПОЛЕ ПРОТИВНИКА", indent=8)
                         dpg.add_spacer(width=16)
-                        dpg.add_text("Кораблей: —", tag="enemy_alive", color=(248, 113, 113))
+                        dpg.add_text("Кораблей: 0", tag="enemy_alive", color=(248, 113, 113))
                         dpg.add_spacer(width=16)
                         t_en_hint = dpg.add_text("", tag="enemy_coord_hint", color=(200, 220, 245))
                         if self.fonts and "semibold" in self.fonts:
@@ -670,7 +670,7 @@ class SeaBattleApp:
         panel_h = max(520, self.view_height - 150)
         col_left_w = max(300, panel_w - 295)
         with dpg.group(tag="page_multiplayer", show=True):
-            self._title("Онлайн мультиплеер", "Кроссплатформенный бой ПК ↔ Смартфон по протоколу MQTT")
+            self._title("Онлайн мультиплеер", "Сетевой бой между вами и противником")
             with dpg.child_window(width=panel_w, height=panel_h, no_scrollbar=True):
                 dpg.bind_item_theme(dpg.last_item(), "card_theme")
                 dpg.add_spacer(height=10)
@@ -678,20 +678,20 @@ class SeaBattleApp:
                     # Левая колонка: Код комнаты, статус, шаги, кнопки
                     with dpg.child_window(width=col_left_w, height=panel_h - 32, border=False, no_scrollbar=True):
                         dpg.add_text("КОД ВАШЕЙ КОМНАТЫ", color=(120, 130, 145))
-                        code_str = self.relay.room_code if self.relay.is_connected else "— — — — —"
+                        code_str = self.relay.room_code if self.relay.is_connected else "- - - - -"
                         code_text = dpg.add_text(code_str, tag="room_code", color=(255, 255, 255))
                         if self.fonts and "title" in self.fonts:
                             dpg.bind_item_font(code_text, self.fonts["title"])
 
                         dpg.add_spacer(height=6)
                         if self.phone_ready:
-                            net_msg = "Телефон готов. Расставьте флот и нажмите «Начать бой»"
+                            net_msg = "Противник готов. Расставьте флот и нажмите «Начать бой»"
                             net_col = (255, 255, 255)
                         elif self.relay.is_phone_connected:
-                            net_msg = "Телефон подключен"
+                            net_msg = "Противник подключился"
                             net_col = (255, 255, 255)
                         elif self.relay.is_connected:
-                            net_msg = "Комната готова. Ожидание подключения смартфона..."
+                            net_msg = "Комната готова. Ожидание противника..."
                             net_col = (255, 255, 255)
                         else:
                             net_msg = "Комната не запущена"
@@ -712,9 +712,9 @@ class SeaBattleApp:
                         dpg.add_text("ИНСТРУКЦИЯ ПО ПОДКЛЮЧЕНИЮ:", color=(120, 130, 145))
                         dpg.add_spacer(height=4)
                         dpg.add_text("1. Нажмите «Создать комнату»", color=(200, 210, 225), wrap=col_left_w - 16)
-                        dpg.add_text("2. Отсканируйте QR-код камерой смартфона", color=(200, 210, 225), wrap=col_left_w - 16)
-                        dpg.add_text("3. На смартфоне расставьте флот и нажмите «Готов»", color=(200, 210, 225), wrap=col_left_w - 16)
-                        dpg.add_text("4. На ПК расставьте корабли и начните бой!", color=(200, 210, 225), wrap=col_left_w - 16)
+                        dpg.add_text("2. Передайте QR-код или ссылку противнику", color=(200, 210, 225), wrap=col_left_w - 16)
+                        dpg.add_text("3. Противник расставляет флот и жмёт «Начать бой»", color=(200, 210, 225), wrap=col_left_w - 16)
+                        dpg.add_text("4. Вы расставляете корабли и начинаете бой!", color=(200, 210, 225), wrap=col_left_w - 16)
 
                         dpg.add_spacer(height=16)
                         with dpg.group(horizontal=True):
@@ -725,14 +725,14 @@ class SeaBattleApp:
 
                         dpg.add_spacer(height=8)
                         with dpg.group(horizontal=True):
-                            b_place = dpg.add_button(label="Расставить флот на ПК", width=185, height=36, callback=self.go_to_placement)
+                            b_place = dpg.add_button(label="Расставить флот", width=185, height=36, callback=self.go_to_placement)
                             dpg.bind_item_theme(b_place, "primary_button")
                             b_stop = dpg.add_button(label="Выйти из комнаты", width=155, height=36, callback=self.stop_room)
                             dpg.bind_item_theme(b_stop, "danger_button")
 
                     # Правая колонка: QR-код
                     with dpg.child_window(width=250, height=panel_h - 32, border=False, no_scrollbar=True):
-                        dpg.add_text("QR-КОД ДЛЯ СМАРТФОНА", color=(120, 130, 145))
+                        dpg.add_text("QR-КОД ДЛЯ ПОДКЛЮЧЕНИЯ", color=(120, 130, 145))
                         dpg.add_spacer(height=6)
                         with dpg.group(tag="qr_container"):
                             if self.relay.is_connected and dpg.does_item_exist("qr_texture"):
@@ -794,45 +794,45 @@ class SeaBattleApp:
                 dpg.bind_item_theme(dpg.last_item(), "about_card_theme")
 
                 add_section("1. Где что лежит в папке проекта")
-                add_code_line("main.py          — главный файл запуска, все окна, меню, клики и анимации")
-                add_code_line("game_logic.py    — правила морского боя, поле, корабли, выстрелы")
-                add_code_line("bot.py           — умный бот (поиск по клеткам + добивание)")
-                add_code_line("network_relay.py — связь с телефоном через облачный MQTT-брокер и QR")
-                add_code_line("theme.py         — цвета, стили кнопок/клеток и загрузка шрифтов")
-                add_code_line("make_ui_assets.py— скрипт, который заранее рисует все WebP-иконки и кнопки")
-                add_code_line("assets/ui/       — папка со всеми готовыми картинками (WebP) и исходниками SVG")
-                add_code_line("web/index.html   — мобильная версия сайта для игры с телефона")
-                add_code_line("build.py         — сборка программы в один SeaBattle.exe через PyInstaller")
-                add_code_line("tests/test_game.py — автотесты проверки правил, бота и размеров сетки")
+                add_code_line("main.py          - главный файл запуска, все окна, меню, клики и анимации")
+                add_code_line("game_logic.py    - правила морского боя, поле, корабли, выстрелы")
+                add_code_line("bot.py           - умный бот (поиск по клеткам + добивание)")
+                add_code_line("network_relay.py - связь с противником через облачный сервер и QR")
+                add_code_line("theme.py         - цвета, стили кнопок/клеток и загрузка шрифтов")
+                add_code_line("make_ui_assets.py- скрипт, который заранее рисует все WebP-иконки и кнопки")
+                add_code_line("assets/ui/       - папка со всеми готовыми картинками (WebP) и исходниками SVG")
+                add_code_line("web/index.html   - веб-версия сайта для игры с другого устройства")
+                add_code_line("build.py         - сборка программы в один SeaBattle.exe через PyInstaller")
+                add_code_line("tests/test_game.py - автотесты проверки правил, бота и размеров сетки")
 
                 add_section("2. Где лежат картинки (фотки) и как они используются")
                 add_plain("В папке assets/ui/ лежат только нужные сжатые WebP-картинки (исходные векторы лежат в assets/ui/svg_sources/). В начале запуска main.py загружает их в видеопамять через PIL + _load_webp_texture:")
-                add_code_line("brand_header.webp        — логотип SEA BATTLE вверху левого меню")
-                add_code_line("toast_header.webp        — шапка всплывающего уведомления слева сверху")
-                add_code_line("nav_<tab>_0..15.webp     — 16 кадров плавной анимации вкладок меню")
-                add_code_line("ship_card_<n>_*.webp     — карточки кораблей (зеленые/красные квадратики)")
-                add_code_line("orient_<1..5>_frame_0..23.webp — 24 кадра вращения корабля при нажатии R")
-                add_code_line("btn_rotate/clear/random/start(_hov).webp — кнопки расстановки и их hover-вид")
-                add_code_line("icon_<name>_accent.webp  — иконки бота, мультиплеера, победы и поражения")
-                add_plain("QR-код для телефона не хранится файлом: network_relay.py (строки 61–80) рисует его на лету через библиотеку qrcode и кладет в текстуру qr_texture.")
+                add_code_line("brand_header.webp        - логотип SEA BATTLE вверху левого меню")
+                add_code_line("toast_header.webp        - шапка всплывающего уведомления слева сверху")
+                add_code_line("nav_<tab>_0..15.webp     - 16 кадров плавной анимации вкладок меню")
+                add_code_line("ship_card_<n>_*.webp     - карточки кораблей (зеленые/красные квадратики)")
+                add_code_line("orient_<1..5>_frame_0..23.webp - 24 кадра вращения корабля при нажатии R")
+                add_code_line("btn_rotate/clear/random/start(_hov).webp - кнопки расстановки и их hover-вид")
+                add_code_line("icon_<name>_accent.webp  - иконки бота, мультиплеера, победы и поражения")
+                add_plain("QR-код не хранится файлом: network_relay.py (строки 61-80) рисует его на лету через библиотеку qrcode и кладет в текстуру qr_texture.")
 
-                add_section("3. main.py — главный файл (окно, меню, анимации и клики)")
-                add_plain("Импорты: queue (очередь событий из фонового потока сети), pathlib.Path (пути к файлам), sys (путь _MEIPASS внутри exe), threading (сеть без зависания окна), time (таймеры анимаций), dearpygui (весь GUI), PIL.Image (открытие WebP), а также локальные Board, BattleshipBot, NetworkRelay, create_themes, load_fonts.")
+                add_section("3. main.py - главный файл (окно, меню, анимации и клики)")
+                add_plain("Импорты: json (сохранение сессии), queue (очередь событий из фонового потока сети), pathlib.Path (пути к файлам), sys (путь _MEIPASS внутри exe), threading (сеть без зависания окна), time (таймеры анимаций), dearpygui (весь GUI), PIL.Image (открытие WebP), а также локальные Board, Ship, BattleshipBot, NetworkRelay, create_themes, load_fonts.")
                 add_code_line("_load_webp_texture(path, tag) | открывает WebP через PIL, переводит пиксели в 0..1 через _INV255 и кладёт в GPU. Нужна при старте в build().")
                 add_code_line("SeaBattleApp.__init__ | создаёт доски player/enemy, бота, сетевой клиент и начальные флаги фазы, хода и анимаций.")
                 add_code_line("build() | грузит все WebP-картинки, создаёт окно, сайдбар, toast-окно, горячую клавишу R и крутит главный цикл 60 FPS.")
-                add_code_line("_sidebar(), _tab_for_page(), _nav_callback() | рисуют левое меню и переключают вкладки (игровое поле и расстановка ведут на вкладку Бой).")
+                add_code_line("_sidebar(), _tab_for_page(), _nav_callback() | рисуют левое меню, переключают вкладки и блокируют выход из активной комнаты.")
                 add_code_line("notify(), _update_toast() | показывают уведомление слева сверху: плавно выезжает с -330px до 16px, уменьшает полоску и прячется.")
                 add_code_line("_animate_navigation() | плавно меняет 16 кадров картинки вкладки (nav_<tab>_0..15) за 0.18с, чтобы подсветка таба перетекала.")
-                add_code_line("_animate_page_transition() | при открытии вкладки сжимает верхний отступ с 24px до 1px — получается мягкий подъём контента.")
+                add_code_line("_animate_page_transition() | при открытии вкладки сжимает верхний отступ с 24px до 1px: получается мягкий подъём контента.")
                 add_code_line("_animate_orient() | при повороте корабля крутит его иконку на +90° (6 кадров из 24) с замедлением в конце.")
                 add_code_line("show_page(page) | очищает правую часть окна, рисует выбранное меню и запускает refresh_all().")
                 add_code_line("_page_home(), choose_bot(), choose_multiplayer(), quick_game() | главный экран с карточками режимов и быстрым авто-стартом.")
                 add_code_line("_page_placement() | экран расстановки: слева сетка, справа карточки кораблей, виджет поворота и 4 кнопки.")
                 add_code_line("_page_game() | экран боя: два поля рядом (ваше и врага) со счётчиками живых кораблей и строкой хода.")
-                add_code_line("_page_multiplayer() | код комнаты, статус сети, кнопки запуска/остановки и QR-код для телефона.")
+                add_code_line("_page_multiplayer() | код комнаты, статус сети, кнопки запуска/выхода и QR-код для подключения.")
                 add_code_line("_page_settings(), _page_about() | настройки (размер поля, сложность бота, ссылка сайта) и эта справка.")
-                add_code_line("_board_widget(prefix, clickable, cell) | строит сетку из кнопок: верхние буквы А–К, левые цифры 1–10 и клетки.")
+                add_code_line("_board_widget(prefix, clickable, cell) | строит сетку из кнопок: верхние буквы А-К, левые цифры 1-10 и клетки.")
                 add_code_line("cell_click(), player_shot(), bot_turn() | обработка клика: ставит/убирает корабль или стреляет по врагу и передаёт ход боту.")
                 add_code_line("_update_ship_cards(), select_ship(), rotate(), auto_place(), clear_placement() | управление флотом при расстановке.")
                 add_code_line("start_battle(), new_game(), finish(), show_game_over_dialog() | старт матча, сброс, завершение и модальное окно победы/поражения.")
@@ -840,32 +840,32 @@ class SeaBattleApp:
                 add_code_line("_update_button_hovers() | как работает подсветка кнопок: каждый кадр проверяет is_item_hovered(tag) и меняет текстуру на *_hov (и обратно).")
                 add_code_line("_update_board_hover() | как работает прицел: находит клетку под курсором, красит букву/цифру, лучи перекрестия и пишет [ Г-5 ].")
                 add_code_line("change_size(), change_difficulty(), copy_room_link(), create_room(), stop_room() | настройки матча и управление комнатой.")
-                add_code_line("_process_events(), _resize() | разбирает события от телефона из очереди queue и подстраивает размер интерфейса при растягивании окна.")
+                add_code_line("_save_session(), _restore_session(), _process_events(), _resize() | сохранение/восстановление игры, обмен ходами и адаптация окна.")
 
-                add_section("4. game_logic.py — правила, поле и корабли")
-                add_plain("Импорты: random (случайная расстановка), typing (типы). Этот файл ничего не знает про графику — только чистые правила игры.")
+                add_section("4. game_logic.py - правила, поле и корабли")
+                add_plain("Импорты: random (случайная расстановка), typing (типы). Этот файл ничего не знает про графику: только чистые правила игры.")
                 add_code_line("Ship (hit, is_sunk, get_surrounding_cells) | хранит координаты палуб, попадания и вычисляет клетки вокруг потопленного корабля.")
                 add_code_line("Board (can_place_ship, place_ship, remove_ship_at) | проверяет, чтобы корабли не касались даже углами, ставит и убирает их.")
                 add_code_line("Board.auto_place_all() | случайно расставляет весь флот от крупных кораблей к мелким (до 500 попыток).")
                 add_code_line("Board.receive_shot() | принимает выстрел, возвращает miss/hit/sunk и при потоплении автоматически ставит промахи вокруг.")
                 add_code_line("Board.get_view(hide=True) | прячет живые корабли противника (туман войны), оставляя только выстрелы.")
 
-                add_section("5. bot.py — искусственный интеллект")
-                add_plain("Импорты: random, typing. Нужен для одиночной игры против ПК в режимах easy и smart.")
+                add_section("5. bot.py - искусственный интеллект")
+                add_plain("Импорты: random, typing. Нужен для одиночной игры против бота в режимах easy и smart.")
                 add_code_line("register_shot_result() | запоминает попадание, при потоплении очищает очередь и вычеркивает клетки вокруг корабля.")
                 add_code_line("_update_target_queue_after_hit() | после 1 попадания проверяет 4 стороны крестом, после 2+ бьёт строго вдоль линии корабля.")
                 add_code_line("choose_shot() | выбирает клетку: сначала очередь добивания, затем шахматная сетка (r+c)%2==0, иначе случайно.")
 
-                add_section("6. network_relay.py — связь ПК с телефоном")
+                add_section("6. network_relay.py - связь в сетевой игре")
                 add_plain("Импорты: json, random, string, threading, time, PIL.Image, paho.mqtt.client, qrcode.")
                 add_code_line("generate_room_code() | делает 5-значный код комнаты без путающихся символов (0/O, 1/I).")
                 add_code_line("generate_qr_texture_data() | генерирует QR-картинку со ссылкой ?room=КОД прямо в памяти для Dear PyGui.")
-                add_code_line("start(), _on_connect(), _on_message(), send_to_phone() | подключается к HiveMQ/EMQX и пересылает выстрелы между ПК и телефоном.")
+                add_code_line("start(), _on_connect(), _on_message(), send_to_phone() | подключается к серверу и пересылает выстрелы и проверку активности между игроками.")
 
                 add_section("7. theme.py, make_ui_assets.py, web/index.html, build.py")
                 add_code_line("theme.py: create_themes(), load_fonts() | задаёт всю чёрно-белую палитру, скругления, цвета клеток и грузит шрифты Segoe UI / Calibri / Consolas.")
                 add_code_line("make_ui_assets.py: build_assets() | рендерит SVG через matplotlib/PIL в 264 сжатых WebP-файла в папке assets/ui/.")
-                add_code_line("web/index.html | мобильная копия игры для браузера телефона: MQTT по WSS, вращение корабля по тапу и перекрестие под пальцем.")
+                add_code_line("web/index.html | веб-версия игры для браузера: сетевой обмен, вращение корабля по нажатию и прицел под пальцем.")
                 add_code_line("build.py | собирает весь проект и папку assets/ui/ в один файл dist/SeaBattle.exe через PyInstaller.")
                 dpg.add_spacer(height=10)
 
@@ -1094,11 +1094,12 @@ class SeaBattleApp:
 
         if self.mode == "multiplayer":
             if not self.phone_ready:
-                self._set_status("Телефон еще не готов")
+                self._set_status("Противник еще не готов")
                 self.show_page("multiplayer")
-                self.notify("Ожидание готовности телефона...")
+                self.notify("Ожидание готовности противника...")
                 return
             self.enemy = Board(self.size, {})
+            self.enemy_sunk_count = 0
             self.phase, self.turn, self.log = "battle", "player", ["Сетевой бой начался. Ваш ход!"]
             self.relay.send_to_phone({"action": "game_start", "phone_turn": False, "size": self.size})
             self.show_page("game")
@@ -1108,6 +1109,7 @@ class SeaBattleApp:
 
         self.enemy = Board(self.size)
         self.enemy.auto_place_all()
+        self.enemy_sunk_count = 0
         self.bot = BattleshipBot(self.size, self.difficulty)
         self.phase, self.turn, self.log = "battle", "player", ["Бой начался. Ваш ход!"]
         self.show_page("game")
@@ -1119,6 +1121,7 @@ class SeaBattleApp:
         self.enemy = Board(self.size)
         self.bot = BattleshipBot(self.size, self.difficulty)
         self.phase, self.turn, self.log = "placement", "player", []
+        self.enemy_sunk_count = 0
         if self.mode != "multiplayer":
             self.phone_ready = False
         self.show_page("placement")
@@ -1207,13 +1210,17 @@ class SeaBattleApp:
             dpg.set_value("player_alive", f"Кораблей: {self.player.count_alive_ships()}")
 
         if dpg.does_item_exist("enemy_alive"):
-            enemy_count = self.enemy.count_alive_ships() if self.mode == "bot" else "—"
+            if self.mode == "bot":
+                enemy_count = self.enemy.count_alive_ships()
+            else:
+                total_enemy = sum(self.player.fleet_config.values())
+                enemy_count = max(0, total_enemy - self.enemy_sunk_count)
             dpg.set_value("enemy_alive", f"Кораблей: {enemy_count}")
 
-        opponent = "телефона" if self.mode == "multiplayer" else "бота"
+        opponent = "противника" if self.mode == "multiplayer" else "бота"
         if dpg.does_item_exist("battle_status_line"):
             if self.phase == "battle":
-                st = "Ваш ход — выберите клетку на поле противника" if self.turn == "player" else f"Ход {opponent} (ожидание выстрела...)"
+                st = "Ваш ход - выберите клетку на поле противника" if self.turn == "player" else f"Ход {opponent} (ожидание выстрела...)"
                 dpg.set_value("battle_status_line", st)
                 dpg.configure_item("battle_status_line", color=(255, 255, 255) if self.turn == "player" else (249, 115, 22))
             elif self.phase == "finished":
@@ -1375,6 +1382,7 @@ class SeaBattleApp:
         self.bot = BattleshipBot(self.size, self.difficulty)
         self.phase = "placement"
         self.turn = "player"
+        self.enemy_sunk_count = 0
         self.log = []
         available_sizes = sorted(self.player.fleet_config.keys(), reverse=True)
         self.selected_size = available_sizes[0]
@@ -1413,7 +1421,7 @@ class SeaBattleApp:
         if dpg.does_item_exist("join_url"):
             dpg.set_value("join_url", self.relay.get_join_url())
         if dpg.does_item_exist("network_status"):
-            dpg.set_value("network_status", "Подключение к брокеру...")
+            dpg.set_value("network_status", "Подключение к серверу...")
 
         def _connect_bg():
             self.relay.start()
@@ -1443,7 +1451,7 @@ class SeaBattleApp:
         self.turn = "player"
         self._clear_session()
         if dpg.does_item_exist("room_code"):
-            dpg.set_value("room_code", "— — — — —")
+            dpg.set_value("room_code", "- - - - -")
         if dpg.does_item_exist("network_status"):
             dpg.set_value("network_status", "Вы вышли из комнаты")
         if dpg.does_item_exist("join_url"):
@@ -1467,6 +1475,7 @@ class SeaBattleApp:
                 "difficulty": self.difficulty,
                 "current_page": self.current_page,
                 "phone_ready": self.phone_ready,
+                "enemy_sunk_count": self.enemy_sunk_count,
                 "player_grid": self.player.grid,
                 "player_ships": [
                     {"size": s.size, "cells": s.cells, "hits": list(s.hits), "orientation": s.orientation}
@@ -1503,6 +1512,7 @@ class SeaBattleApp:
             self.turn = data.get("turn", "player")
             self.room_locked = bool(data.get("room_locked", False))
             self.phone_ready = bool(data.get("phone_ready", False))
+            self.enemy_sunk_count = int(data.get("enemy_sunk_count", 0))
 
             self.player = Board(self.size)
             self.player.grid = data.get("player_grid", self.player.grid)
@@ -1554,8 +1564,8 @@ class SeaBattleApp:
             self.phone_ready = False
             self.events.put(("phone_afk", None))
 
-        if self.relay.is_connected and dpg.does_item_exist("network_status") and dpg.get_value("network_status") == "Подключение к брокеру...":
-            dpg.set_value("network_status", "Комната готова. Ожидание подключения смартфона...")
+        if self.relay.is_connected and dpg.does_item_exist("network_status") and dpg.get_value("network_status") == "Подключение к серверу...":
+            dpg.set_value("network_status", "Комната готова. Ожидание противника...")
         try:
             while True:
                 action, data = self.events.get_nowait()
@@ -1566,15 +1576,15 @@ class SeaBattleApp:
                         dpg.set_value("join_url", self.relay.get_join_url())
                 elif action == "relay_error":
                     if dpg.does_item_exist("network_status"):
-                        dpg.set_value("network_status", "Ошибка подключения к брокеру")
-                    self.notify("Не удалось подключиться к MQTT брокеру", duration=3.5)
+                        dpg.set_value("network_status", "Ошибка подключения к серверу")
+                    self.notify("Не удалось подключиться к серверу", duration=3.5)
                 elif action == "phone_connected":
                     if dpg.does_item_exist("network_status"):
-                        dpg.set_value("network_status", "Телефон подключен")
-                    self.notify("Телефон подключен!")
+                        dpg.set_value("network_status", "Противник подключился")
+                    self.notify("Противник подключился!")
                 elif action in ("phone_left", "phone_afk"):
                     self.phone_ready = False
-                    msg = "Смартфон вышел из комнаты" if action == "phone_left" else "Смартфон отключился (AFK)"
+                    msg = "Противник вышел из комнаты" if action == "phone_left" else "Противник вышел из игры"
                     if dpg.does_item_exist("network_status"):
                         dpg.set_value("network_status", msg)
                     self.notify(msg, duration=3.0)
@@ -1584,13 +1594,13 @@ class SeaBattleApp:
                 elif action == "phone_ready":
                     self.phone_ready = True
                     if dpg.does_item_exist("network_status"):
-                        dpg.set_value("network_status", "Телефон готов. Расставьте флот и нажмите «Начать бой»")
-                    self.notify("Телефон готов к бою!")
+                        dpg.set_value("network_status", "Противник готов. Расставьте флот и нажмите «Начать бой»")
+                    self.notify("Противник готов к бою!")
                 elif action == "phone_restart":
                     self.phone_ready = False
                     if dpg.does_item_exist("network_status"):
-                        dpg.set_value("network_status", "Телефон подключен (новая расстановка)")
-                    self.notify("Игрок на телефоне готовится к новой игре")
+                        dpg.set_value("network_status", "Противник готовится к новой игре")
+                    self.notify("Противник готовится к новой игре")
                 elif action == "phone_shot" and self.phase == "battle":
                     if self.turn != "phone":
                         continue
@@ -1606,8 +1616,8 @@ class SeaBattleApp:
                         "all_sunk": all_sunk
                     })
                     res_name = self._result_name(result)
-                    self._log(f"Телефон стреляет {Board.coord_to_str(r, c)}: {res_name}")
-                    self.notify(f"Телефон: {Board.coord_to_str(r, c)} ({res_name})")
+                    self._log(f"Противник стреляет {Board.coord_to_str(r, c)}: {res_name}")
+                    self.notify(f"Противник: {Board.coord_to_str(r, c)} ({res_name})")
                     if all_sunk:
                         self.relay.send_to_phone({"action": "game_over", "winner": "phone"})
                         self.finish("Поражение. Ваш флот уничтожен.", is_victory=False)
@@ -1618,6 +1628,8 @@ class SeaBattleApp:
                     r, c = int(data["r"]), int(data["c"])
                     result = data.get("res", "miss")
                     self.enemy.grid[r][c] = CELL_MISS if result == "miss" else CELL_HIT if result == "hit" else CELL_SUNK
+                    if result == "sunk":
+                        self.enemy_sunk_count += 1
                     for mr, mc in data.get("surrounding", []):
                         self.enemy.grid[mr][mc] = CELL_MISS
                     res_name = self._result_name(result)

@@ -245,7 +245,7 @@ button.danger {
   gap: 2px;
   background: var(--panel);
   padding: 2px;
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 .coord-label {
@@ -591,7 +591,7 @@ button.danger {
 
   <div style="display: flex; align-items: center; gap: 8px;">
     <div id="roomChip" class="room-chip">
-      <span id="roomCodeDisplay">КОМНАТА: —</span>
+      <span id="roomCodeDisplay">КОМНАТА: -</span>
     </div>
     <button id="btnLeaveRoom" class="danger hidden" style="padding: 5px 10px; font-size: 12px;" onclick="leaveRoom()">Выйти</button>
   </div>
@@ -601,7 +601,7 @@ button.danger {
   <!-- Экран 1: Вход в комнату -->
   <section id="screenJoin" class="card">
     <div class="card-title" style="margin-bottom: 6px;">Подключение к матчу</div>
-    <div class="card-desc">Введите 5-значный код комнаты с экрана ПК или откройте ссылку из QR-кода</div>
+    <div class="card-desc">Введите 5-значный код комнаты или откройте ссылку из QR-кода</div>
     <input id="inputRoomCode" class="input-room" maxlength="5" placeholder="КОД">
     <button id="btnConnect" class="primary" style="width: 100%; padding: 12px;">Подключиться</button>
   </section>
@@ -697,7 +697,7 @@ button.danger {
 <div id="modalOverlay" class="modal-overlay hidden">
   <div class="modal">
     <div id="modalTitle" class="modal-title">ИТОГИ МАТЧА</div>
-    <div id="modalMsg" class="modal-msg">—</div>
+    <div id="modalMsg" class="modal-msg">-</div>
     <div style="display: flex; gap: 8px;">
       <button class="primary" style="flex: 1; padding: 12px;" onclick="resetForNewGame()">Сыграть снова</button>
       <button class="danger" style="flex: 1; padding: 12px;" onclick="leaveRoom()">Выйти из комнаты</button>
@@ -752,7 +752,7 @@ function leaveRoom(reasonMsg) {
   enemySunkCount = 0;
   lastPcSeen = 0;
 
-  document.getElementById('roomCodeDisplay').textContent = 'КОМНАТА: —';
+  document.getElementById('roomCodeDisplay').textContent = 'КОМНАТА: -';
   const chip = document.getElementById('roomChip');
   if (chip) chip.classList.remove('online');
   document.getElementById('btnLeaveRoom').classList.add('hidden');
@@ -938,6 +938,9 @@ function buildGridDOM(container, cellData, hintId, onCellClick) {
   }
 
   let isTouching = false;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchMoved = false;
 
   container.onmousemove = (e) => {
     if (isTouching) return;
@@ -958,16 +961,23 @@ function buildGridDOM(container, cellData, hintId, onCellClick) {
 
   container.ontouchstart = (e) => {
     isTouching = true;
+    touchMoved = false;
     const t = e.touches[0];
     if (!t) return;
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
     const pos = cellAtPoint(t.clientX, t.clientY);
     if (pos) applyCrosshair(pos[0], pos[1]);
   };
 
   container.ontouchmove = (e) => {
-    e.preventDefault();
     const t = e.touches[0];
     if (!t) return;
+    if (Math.abs(t.clientX - touchStartX) > 10 || Math.abs(t.clientY - touchStartY) > 10) {
+      touchMoved = true;
+      clearCrosshair();
+      return;
+    }
     const pos = cellAtPoint(t.clientX, t.clientY);
     if (pos) applyCrosshair(pos[0], pos[1]);
     else clearCrosshair();
@@ -977,7 +987,7 @@ function buildGridDOM(container, cellData, hintId, onCellClick) {
     const t = e.changedTouches[0];
     const pos = t ? cellAtPoint(t.clientX, t.clientY) : activeHover;
     clearCrosshair();
-    if (pos && onCellClick) {
+    if (!touchMoved && pos && onCellClick) {
       e.preventDefault();
       onCellClick(pos[0], pos[1]);
     }
@@ -1189,7 +1199,7 @@ function connectToRoom(roomCode) {
       hbInterval = setInterval(() => sendMessage({action: 'heartbeat'}), 3000);
       afkInterval = setInterval(() => {
         if (lastPcSeen > 0 && (Date.now() - lastPcSeen) > 12000) {
-          leaveRoom('ПК отключился (таймаут AFK)');
+          leaveRoom('Противник вышел из игры');
         }
       }, 2000);
       showToast('Подключено к комнате ' + currentRoom);
@@ -1237,8 +1247,8 @@ function onReadyClick() {
   buildGridDOM(document.getElementById('gridOwnBattle'), ownGridData, 'ownCoordHint', null);
   updateFleetCounters();
 
-  setTurnState(false, 'Ожидание начала боя с ПК...');
-  showToast('Вы готовы! Ожидание ПК...');
+  setTurnState(false, 'Ожидание начала боя...');
+  showToast('Вы готовы! Ожидание противника...');
 }
 
 function shootEnemyCell(r, c) {
@@ -1258,10 +1268,10 @@ function setTurnState(isMine, label) {
 
   if (isMine) {
     banner.className = 'turn-banner my-turn';
-    txt.textContent = label || 'Ваш ход — выберите клетку на поле противника';
+    txt.textContent = label || 'Ваш ход - выберите клетку на поле противника';
   } else {
     banner.className = 'turn-banner enemy-turn';
-    txt.textContent = label || 'Ход ПК (ожидание выстрела...)';
+    txt.textContent = label || 'Ход противника (ожидание выстрела...)';
   }
 }
 
@@ -1302,7 +1312,7 @@ function handleServerMessage(m) {
   lastPcSeen = Date.now();
 
   if (m.action === 'room_closed') {
-    leaveRoom('Комната закрыта на ПК');
+    leaveRoom('Противник вышел из комнаты');
     return;
   }
 
@@ -1311,12 +1321,12 @@ function handleServerMessage(m) {
   }
 
   if (m.action === 'join_accepted') {
-    showToast('Соединение с ПК установлено');
+    showToast('Соединение с противником установлено');
   }
 
   if (m.action === 'game_start') {
     myTurn = !!m.phone_turn;
-    setTurnState(myTurn, myTurn ? 'Ваш ход — выберите клетку!' : 'Ход ПК (ожидание выстрела...)');
+    setTurnState(myTurn, myTurn ? 'Ваш ход - выберите клетку!' : 'Ход противника (ожидание выстрела...)');
     showToast('Бой начался!');
   }
 
@@ -1331,7 +1341,7 @@ function handleServerMessage(m) {
 
     myTurn = (m.res !== 'miss');
     buildGridDOM(document.getElementById('gridEnemy'), enemyGridData, 'enemyCoordHint', shootEnemyCell);
-    setTurnState(myTurn, myTurn ? 'Ваш ход (Попадание!)' : 'Ход ПК (ожидание выстрела...)');
+    setTurnState(myTurn, myTurn ? 'Ваш ход (Попадание!)' : 'Ход противника (ожидание выстрела...)');
 
     if (m.res === 'miss') showToast(`Выстрел ${coordStr(m.r, m.c)}: промах`);
     else if (m.res === 'hit') showToast(`Выстрел ${coordStr(m.r, m.c)}: попадание`);
@@ -1374,10 +1384,10 @@ function handleServerMessage(m) {
     updateFleetCounters();
 
     myTurn = (res === 'miss');
-    setTurnState(myTurn, myTurn ? 'Ваш ход — выберите клетку!' : 'Ход ПК (ожидание выстрела...)');
+    setTurnState(myTurn, myTurn ? 'Ваш ход - выберите клетку!' : 'Ход противника (ожидание выстрела...)');
 
     if (allSunk) {
-      showResultModal(false, 'ПОРАЖЕНИЕ!', 'Ваш флот уничтожен игроком на ПК.');
+      showResultModal(false, 'ПОРАЖЕНИЕ!', 'Ваш флот уничтожен противником.');
     }
   }
 
@@ -1385,7 +1395,7 @@ function handleServerMessage(m) {
     if (m.winner === 'phone') {
       showResultModal(true, 'ПОБЕДА!', 'Флот противника полностью уничтожен.');
     } else {
-      showResultModal(false, 'ПОРАЖЕНИЕ!', 'Ваш флот уничтожен игроком на ПК.');
+      showResultModal(false, 'ПОРАЖЕНИЕ!', 'Ваш флот уничтожен противником.');
     }
   }
 }
