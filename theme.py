@@ -25,33 +25,50 @@ TEXT_ACTIVE = (255, 255, 255, 255)      # Белый контрастный те
 TEXT_HOV = (195, 202, 212, 255)         # Светло-серый
 TEXT_MUTED = (115, 125, 140, 255)       # Нейтральный серый
 
+_THEME_COLOR_REFS = []
+
+
+def _tc(target, dark_col, light_col):
+    item = dpg.add_theme_color(target, dark_col)
+    _THEME_COLOR_REFS.append((item, dark_col, light_col))
+    return item
+
+
+def apply_theme_mode(mode: str):
+    """Переключает цвета всех тем между 'dark' (черная) и 'light' (белая)."""
+    is_light = (mode == "light")
+    for item, dark_col, light_col in _THEME_COLOR_REFS:
+        if dpg.does_item_exist(item):
+            dpg.set_value(item, light_col if is_light else dark_col)
+
 
 def create_themes():
+    _THEME_COLOR_REFS.clear()
     # 1. Глобальная тема приложения
     with dpg.theme(tag="theme_global"):
         with dpg.theme_component(dpg.mvAll):
-            dpg.add_theme_color(dpg.mvThemeCol_WindowBg, BG)
-            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, PANEL)
-            dpg.add_theme_color(dpg.mvThemeCol_PopupBg, PANEL)
-            dpg.add_theme_color(dpg.mvThemeCol_Text, TEXT_ACTIVE)
-            dpg.add_theme_color(dpg.mvThemeCol_TextDisabled, TEXT_MUTED)
-            dpg.add_theme_color(dpg.mvThemeCol_Border, STROKE)
-            dpg.add_theme_color(dpg.mvThemeCol_FrameBg, WIDGET)
-            dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, WIDGET_HOVER)
-            dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, WIDGET_ACTIVE)
-            dpg.add_theme_color(dpg.mvThemeCol_Button, WIDGET)
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, WIDGET_HOVER)
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, WIDGET_ACTIVE)
-            dpg.add_theme_color(dpg.mvThemeCol_Header, WIDGET)
-            dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, WIDGET_HOVER)
-            dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, (45, 50, 58, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_TitleBg, (18, 20, 26, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (24, 28, 36, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_TitleBgCollapsed, (18, 20, 26, 255))
+            _tc(dpg.mvThemeCol_WindowBg, BG, (242, 244, 247, 255))
+            _tc(dpg.mvThemeCol_ChildBg, PANEL, (255, 255, 255, 255))
+            _tc(dpg.mvThemeCol_PopupBg, PANEL, (255, 255, 255, 255))
+            _tc(dpg.mvThemeCol_Text, TEXT_ACTIVE, (17, 20, 26, 255))
+            _tc(dpg.mvThemeCol_TextDisabled, TEXT_MUTED, (110, 120, 135, 255))
+            _tc(dpg.mvThemeCol_Border, STROKE, (212, 217, 226, 255))
+            _tc(dpg.mvThemeCol_FrameBg, WIDGET, (232, 235, 240, 255))
+            _tc(dpg.mvThemeCol_FrameBgHovered, WIDGET_HOVER, (220, 224, 232, 255))
+            _tc(dpg.mvThemeCol_FrameBgActive, WIDGET_ACTIVE, (205, 210, 220, 255))
+            _tc(dpg.mvThemeCol_Button, WIDGET, (232, 235, 240, 255))
+            _tc(dpg.mvThemeCol_ButtonHovered, WIDGET_HOVER, (220, 224, 232, 255))
+            _tc(dpg.mvThemeCol_ButtonActive, WIDGET_ACTIVE, (205, 210, 220, 255))
+            _tc(dpg.mvThemeCol_Header, WIDGET, (232, 235, 240, 255))
+            _tc(dpg.mvThemeCol_HeaderHovered, WIDGET_HOVER, (220, 224, 232, 255))
+            _tc(dpg.mvThemeCol_HeaderActive, (45, 50, 58, 255), (205, 210, 220, 255))
+            _tc(dpg.mvThemeCol_TitleBg, (18, 20, 26, 255), (235, 238, 244, 255))
+            _tc(dpg.mvThemeCol_TitleBgActive, (24, 28, 36, 255), (225, 229, 238, 255))
+            _tc(dpg.mvThemeCol_TitleBgCollapsed, (18, 20, 26, 255), (235, 238, 244, 255))
             dpg.add_theme_color(dpg.mvThemeCol_ModalWindowDimBg, (0, 0, 0, 160))
-            dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (255, 255, 255, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_SliderGrab, (220, 224, 230, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive, (255, 255, 255, 255))
+            _tc(dpg.mvThemeCol_CheckMark, (255, 255, 255, 255), (17, 20, 26, 255))
+            _tc(dpg.mvThemeCol_SliderGrab, (220, 224, 230, 255), (60, 68, 82, 255))
+            _tc(dpg.mvThemeCol_SliderGrabActive, (255, 255, 255, 255), (17, 20, 26, 255))
             dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 6)
             dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 6)
             dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
@@ -65,8 +82,8 @@ def create_themes():
     # 2. Боковая панель сайдбара
     with dpg.theme(tag="sidebar_theme"):
         with dpg.theme_component(dpg.mvChildWindow):
-            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, SIDEBAR)
-            dpg.add_theme_color(dpg.mvThemeCol_Border, STROKE)
+            _tc(dpg.mvThemeCol_ChildBg, SIDEBAR, (255, 255, 255, 255))
+            _tc(dpg.mvThemeCol_Border, STROKE, (212, 217, 226, 255))
             dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 6)
             dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 8, 10)
 
@@ -82,14 +99,14 @@ def create_themes():
             dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize, 0)
             dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
 
-    # 4. Основная кнопка действия (Minimalist White Primary Button)
+    # 4. Основная кнопка действия (Minimalist Primary Button)
     with dpg.theme(tag="primary_button"):
         with dpg.theme_component(dpg.mvButton):
-            dpg.add_theme_color(dpg.mvThemeCol_Button, (245, 245, 247, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (255, 255, 255, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (220, 222, 228, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_Text, (14, 15, 18, 255))  # глубокий черный контрастный текст
-            dpg.add_theme_color(dpg.mvThemeCol_Border, (255, 255, 255, 255))
+            _tc(dpg.mvThemeCol_Button, (245, 245, 247, 255), (17, 20, 26, 255))
+            _tc(dpg.mvThemeCol_ButtonHovered, (255, 255, 255, 255), (34, 38, 48, 255))
+            _tc(dpg.mvThemeCol_ButtonActive, (220, 222, 228, 255), (50, 56, 70, 255))
+            _tc(dpg.mvThemeCol_Text, (14, 15, 18, 255), (255, 255, 255, 255))
+            _tc(dpg.mvThemeCol_Border, (255, 255, 255, 255), (17, 20, 26, 255))
             dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
             dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 12, 9)
         with dpg.theme_component(dpg.mvImageButton):
@@ -101,14 +118,14 @@ def create_themes():
             dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize, 1)
             dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 0, 0)
 
-    # 5. Вторичная кнопка (Графитовая с белым текстом)
+    # 5. Вторичная кнопка
     with dpg.theme(tag="secondary_button"):
         with dpg.theme_component(dpg.mvButton):
-            dpg.add_theme_color(dpg.mvThemeCol_Button, WIDGET)
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, WIDGET_HOVER)
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, WIDGET_ACTIVE)
-            dpg.add_theme_color(dpg.mvThemeCol_Border, WIDGET_STROKE)
-            dpg.add_theme_color(dpg.mvThemeCol_Text, TEXT_ACTIVE)
+            _tc(dpg.mvThemeCol_Button, WIDGET, (232, 235, 240, 255))
+            _tc(dpg.mvThemeCol_ButtonHovered, WIDGET_HOVER, (220, 224, 232, 255))
+            _tc(dpg.mvThemeCol_ButtonActive, WIDGET_ACTIVE, (205, 210, 220, 255))
+            _tc(dpg.mvThemeCol_Border, WIDGET_STROKE, (195, 202, 214, 255))
+            _tc(dpg.mvThemeCol_Text, TEXT_ACTIVE, (17, 20, 26, 255))
             dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
             dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize, 1)
             dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 10, 8)
@@ -216,11 +233,22 @@ def create_themes():
     for name, (bg_col, hov_col, act_col, txt_col) in cells.items():
         with dpg.theme(tag=name):
             with dpg.theme_component(dpg.mvButton):
-                dpg.add_theme_color(dpg.mvThemeCol_Button, bg_col)
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, hov_col)
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, act_col)
-                border_col = (255, 255, 255, 255) if (name in ("cell_target", "cell_ship", "cell_ship_crosshair")) else ((115, 135, 168, 255) if name == "cell_water_crosshair" else WIDGET_STROKE)
-                dpg.add_theme_color(dpg.mvThemeCol_Border, border_col)
+                if name == "cell_water":
+                    _tc(dpg.mvThemeCol_Button, bg_col, (235, 238, 244, 255))
+                    _tc(dpg.mvThemeCol_ButtonHovered, hov_col, (210, 218, 230, 255))
+                    _tc(dpg.mvThemeCol_ButtonActive, act_col, (195, 204, 218, 255))
+                    _tc(dpg.mvThemeCol_Border, WIDGET_STROKE, (205, 212, 224, 255))
+                elif name == "cell_miss":
+                    _tc(dpg.mvThemeCol_Button, bg_col, (220, 224, 232, 255))
+                    _tc(dpg.mvThemeCol_ButtonHovered, hov_col, (210, 215, 224, 255))
+                    _tc(dpg.mvThemeCol_ButtonActive, act_col, (200, 205, 215, 255))
+                    _tc(dpg.mvThemeCol_Border, WIDGET_STROKE, (195, 202, 214, 255))
+                else:
+                    dpg.add_theme_color(dpg.mvThemeCol_Button, bg_col)
+                    dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, hov_col)
+                    dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, act_col)
+                    border_col = (255, 255, 255, 255) if (name in ("cell_target", "cell_ship", "cell_ship_crosshair")) else ((115, 135, 168, 255) if name == "cell_water_crosshair" else WIDGET_STROKE)
+                    dpg.add_theme_color(dpg.mvThemeCol_Border, border_col)
                 dpg.add_theme_color(dpg.mvThemeCol_Text, txt_col)
                 dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 3)
                 dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 0, 0)
@@ -229,16 +257,16 @@ def create_themes():
     # Карточки и контейнеры
     with dpg.theme(tag="card_theme"):
         with dpg.theme_component(dpg.mvChildWindow):
-            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, PANEL)
-            dpg.add_theme_color(dpg.mvThemeCol_Border, STROKE)
+            _tc(dpg.mvThemeCol_ChildBg, PANEL, (255, 255, 255, 255))
+            _tc(dpg.mvThemeCol_Border, STROKE, (212, 217, 226, 255))
             dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 6)
             dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 14, 12)
         with dpg.theme_component(dpg.mvWindowAppItem):
-            dpg.add_theme_color(dpg.mvThemeCol_WindowBg, PANEL)
-            dpg.add_theme_color(dpg.mvThemeCol_Border, STROKE)
-            dpg.add_theme_color(dpg.mvThemeCol_TitleBg, (18, 20, 26, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (24, 28, 36, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_TitleBgCollapsed, (18, 20, 26, 255))
+            _tc(dpg.mvThemeCol_WindowBg, PANEL, (255, 255, 255, 255))
+            _tc(dpg.mvThemeCol_Border, STROKE, (212, 217, 226, 255))
+            _tc(dpg.mvThemeCol_TitleBg, (18, 20, 26, 255), (235, 238, 244, 255))
+            _tc(dpg.mvThemeCol_TitleBgActive, (24, 28, 36, 255), (225, 229, 238, 255))
+            _tc(dpg.mvThemeCol_TitleBgCollapsed, (18, 20, 26, 255), (235, 238, 244, 255))
             dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 8)
             dpg.add_theme_style(dpg.mvStyleVar_WindowBorderSize, 1)
 
@@ -267,12 +295,12 @@ def create_themes():
     # Карточка со скроллбаром для длинной документации во вкладке «О проекте»
     with dpg.theme(tag="about_card_theme"):
         with dpg.theme_component(dpg.mvChildWindow):
-            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, PANEL)
-            dpg.add_theme_color(dpg.mvThemeCol_Border, STROKE)
-            dpg.add_theme_color(dpg.mvThemeCol_ScrollbarBg, (14, 15, 18, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrab, (55, 62, 74, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrabHovered, (85, 95, 112, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrabActive, (120, 132, 152, 255))
+            _tc(dpg.mvThemeCol_ChildBg, PANEL, (255, 255, 255, 255))
+            _tc(dpg.mvThemeCol_Border, STROKE, (212, 217, 226, 255))
+            _tc(dpg.mvThemeCol_ScrollbarBg, (14, 15, 18, 255), (235, 238, 244, 255))
+            _tc(dpg.mvThemeCol_ScrollbarGrab, (55, 62, 74, 255), (175, 182, 194, 255))
+            _tc(dpg.mvThemeCol_ScrollbarGrabHovered, (85, 95, 112, 255), (145, 154, 168, 255))
+            _tc(dpg.mvThemeCol_ScrollbarGrabActive, (120, 132, 152, 255), (110, 120, 135, 255))
             dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 6)
             dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 16, 14)
             dpg.add_theme_style(dpg.mvStyleVar_ScrollbarSize, 8)

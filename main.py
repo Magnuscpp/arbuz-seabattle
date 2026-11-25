@@ -19,7 +19,7 @@ from PIL import Image
 
 from game_logic import Board, Ship, CELL_EMPTY, CELL_SHIP, CELL_MISS, CELL_HIT, CELL_SUNK
 from network_relay import NetworkRelay, generate_room_code
-from theme import create_themes, load_fonts
+from theme import create_themes, load_fonts, apply_theme_mode
 
 _INV255 = tuple(i / 255.0 for i in range(256))
 SESSION_FILE = Path.home() / ".seabattle_session.json"
@@ -58,6 +58,7 @@ class SeaBattleApp:
         self.relay.on_error = lambda err: self.events.put(("relay_error", err))
         self.phone_ready = False
         self.room_locked = False
+        self.theme_mode = "dark"
         self.enemy_sunk_count = 0
         self._last_heartbeat_sent = 0.0
         self.view_width, self.view_height = 1200, 740
@@ -719,40 +720,58 @@ class SeaBattleApp:
     def _page_settings(self):
         card_w = min(680, self.view_width - self.sidebar_width - 45)
         with dpg.group(tag="page_settings", show=True):
-            self._title("Настройки", "Параметры сетевой игры 1x1 и адрес веб-клиента")
-            with dpg.child_window(width=card_w, height=265, no_scrollbar=True):
-                dpg.bind_item_theme(dpg.last_item(), "card_theme")
-                dpg.add_spacer(height=8)
-
-                t_field = dpg.add_text("Формат игрового поля", indent=16)
+            self._title("Настройки", "Внешний вид и параметры подключения")
+            dpg.add_spacer(height=8)
+            with dpg.group(indent=12):
+                t_theme = dpg.add_text("Тема оформления")
                 if self.fonts and "semibold" in self.fonts:
-                    dpg.bind_item_font(t_field, self.fonts["semibold"])
-                dpg.add_text("10 x 10 (классический флот: 1x4, 2x3, 3x2, 4x1)", color=(140, 150, 168), indent=16)
+                    dpg.bind_item_font(t_theme, self.fonts["semibold"])
+                dpg.add_spacer(height=4)
+                with dpg.group(horizontal=True):
+                    b_dark = dpg.add_button(
+                        label="Чёрная (Тёмная)",
+                        width=180,
+                        height=38,
+                        callback=lambda: self.set_theme_mode("dark")
+                    )
+                    dpg.bind_item_theme(b_dark, "primary_button" if self.theme_mode == "dark" else "secondary_button")
+                    b_light = dpg.add_button(
+                        label="Белая (Светлая)",
+                        width=180,
+                        height=38,
+                        callback=lambda: self.set_theme_mode("light")
+                    )
+                    dpg.bind_item_theme(b_light, "primary_button" if self.theme_mode == "light" else "secondary_button")
 
-                dpg.add_spacer(height=10)
+                dpg.add_spacer(height=18)
                 dpg.add_separator()
-                dpg.add_spacer(height=10)
+                dpg.add_spacer(height=14)
 
-                t_url = dpg.add_text("Адрес веб-клиента (GitHub Pages)", indent=16)
+                t_url = dpg.add_text("Адрес веб-клиента (GitHub Pages)")
                 if self.fonts and "semibold" in self.fonts:
                     dpg.bind_item_font(t_url, self.fonts["semibold"])
-                dpg.add_spacer(height=2)
+                dpg.add_spacer(height=4)
                 dpg.add_input_text(
                     default_value=self.relay.github_pages_url,
-                    width=card_w - 40,
-                    indent=16,
+                    width=card_w - 24,
                     tag="github_url",
                     callback=lambda s, a: self.relay.set_github_pages_url(a)
                 )
                 dpg.add_spacer(height=10)
                 b_rst = dpg.add_button(
                     label="Сбросить адрес по умолчанию",
-                    width=230,
-                    height=34,
-                    indent=16,
+                    width=240,
+                    height=36,
                     callback=self._reset_github_url
                 )
                 dpg.bind_item_theme(b_rst, "secondary_button")
+
+    def set_theme_mode(self, mode: str):
+        self.theme_mode = mode
+        apply_theme_mode(mode)
+        self.notify("Тема: Чёрная" if mode == "dark" else "Тема: Белая", duration=1.5)
+        if self.current_page == "settings":
+            self.show_page("settings", animate=False)
 
     def _page_about(self):
         card_w = min(840, self.view_width - self.sidebar_width - 45)
