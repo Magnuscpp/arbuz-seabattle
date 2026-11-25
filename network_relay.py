@@ -34,7 +34,7 @@ def generate_room_code(length: int = 5) -> str:
 
 
 class NetworkRelay:
-    def __init__(self, github_pages_url: str = "https://magnuscpp.github.io/seabattle/"):
+    def __init__(self, github_pages_url: str = "https://magnuscpp.github.io/arbuz-seabattle/"):
         self.github_pages_url = github_pages_url.rstrip('/') + '/'
         self.room_code = generate_room_code()
         self.client: Optional[mqtt.Client] = None
