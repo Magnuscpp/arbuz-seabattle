@@ -40,6 +40,8 @@ class NetworkRelay:
         self.client: Optional[mqtt.Client] = None
         self.is_connected = False
         self.is_phone_connected = False
+        self.last_phone_seen = 0.0
+        self.last_phone_seen = 0.0
 
         # Коллбеки для GUI
         self.on_phone_connected: Optional[Callable[[], None]] = None
@@ -48,6 +50,7 @@ class NetworkRelay:
         self.on_phone_shot: Optional[Callable[[int, int], None]] = None
         self.on_defense_result: Optional[Callable[[dict], None]] = None
         self.on_phone_restart: Optional[Callable[[], None]] = None
+        self.on_phone_left: Optional[Callable[[], None]] = None
         self.on_error: Optional[Callable[[str], None]] = None
 
         self._lock = threading.Lock()
@@ -126,6 +129,7 @@ class NetworkRelay:
         try:
             payload = json.loads(msg.payload.decode('utf-8'))
             action = payload.get("action")
+            self.last_phone_seen = time.monotonic()
 
             if action == "phone_join":
                 self.is_phone_connected = True
@@ -133,6 +137,18 @@ class NetworkRelay:
                 self.send_to_phone({"action": "join_accepted", "room": self.room_code})
                 if self.on_phone_connected:
                     self.on_phone_connected()
+
+            elif action == "heartbeat":
+                if not self.is_phone_connected:
+                    self.is_phone_connected = True
+                    if self.on_phone_connected:
+                        self.on_phone_connected()
+
+            elif action == "phone_leave":
+                self.is_phone_connected = False
+                self.last_phone_seen = 0.0
+                if self.on_phone_left:
+                    self.on_phone_left()
 
             elif action == "ping":
                 self.send_to_phone({"action": "pong"})
@@ -180,3 +196,4 @@ class NetworkRelay:
             self.client = None
         self.is_connected = False
         self.is_phone_connected = False
+        self.last_phone_seen = 0.0

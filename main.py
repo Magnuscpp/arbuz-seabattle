@@ -9,6 +9,7 @@
 - Четкий, плотный русский шрифт Segoe UI Semibold
 - Чистый заголовок окна без кракозябр
 """
+import json
 import queue
 from pathlib import Path
 import sys
@@ -18,11 +19,12 @@ import dearpygui.dearpygui as dpg
 from PIL import Image
 
 from bot import BattleshipBot
-from game_logic import Board, CELL_EMPTY, CELL_SHIP, CELL_MISS, CELL_HIT, CELL_SUNK
+from game_logic import Board, Ship, CELL_EMPTY, CELL_SHIP, CELL_MISS, CELL_HIT, CELL_SUNK
 from network_relay import NetworkRelay
 from theme import create_themes, load_fonts
 
 _INV255 = tuple(i / 255.0 for i in range(256))
+SESSION_FILE = Path.home() / ".seabattle_session.json"
 
 
 def _load_webp_texture(path: Path, tag: str):
@@ -56,8 +58,11 @@ class SeaBattleApp:
         self.relay.on_phone_shot = lambda r, c: self.events.put(("phone_shot", (r, c)))
         self.relay.on_defense_result = lambda data: self.events.put(("defense_result", data))
         self.relay.on_phone_restart = lambda: self.events.put(("phone_restart", None))
+        self.relay.on_phone_left = lambda: self.events.put(("phone_left", None))
         self.relay.on_error = lambda err: self.events.put(("relay_error", err))
         self.phone_ready = False
+        self.room_locked = False
+        self._last_heartbeat_sent = 0.0
         self.view_width, self.view_height = 1200, 740
         self.current_page = "home"
         self.sidebar_width = 225
@@ -167,7 +172,8 @@ class SeaBattleApp:
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
-        self.show_page("home")
+        start_page = self._restore_session()
+        self.show_page(start_page)
 
         # Главный цикл приложения с 60 FPS
         while dpg.is_dearpygui_running():
@@ -187,6 +193,8 @@ class SeaBattleApp:
             dpg.render_dearpygui_frame()
             time.sleep(0.012)
 
+        if self.room_locked or self.phase == "battle":
+            self._save_session()
         self.relay.stop()
         dpg.destroy_context()
 
@@ -226,6 +234,9 @@ class SeaBattleApp:
 
     def _nav_callback(self, page):
         def navigate(sender, app_data, user_data):
+            if self.room_locked and page not in ("game", "multiplayer"):
+                self.notify("Вы в комнате! Нажмите «Выйти из комнаты»", duration=2.5)
+                return
             if page == "game":
                 if self.phase == "battle":
                     self.show_page("game")
@@ -714,9 +725,9 @@ class SeaBattleApp:
 
                         dpg.add_spacer(height=8)
                         with dpg.group(horizontal=True):
-                            b_place = dpg.add_button(label="Расставить флот на ПК", width=200, height=36, callback=self.go_to_placement)
+                            b_place = dpg.add_button(label="Расставить флот на ПК", width=185, height=36, callback=self.go_to_placement)
                             dpg.bind_item_theme(b_place, "primary_button")
-                            b_stop = dpg.add_button(label="Остановить", width=120, height=36, callback=self.stop_room)
+                            b_stop = dpg.add_button(label="Выйти из комнаты", width=155, height=36, callback=self.stop_room)
                             dpg.bind_item_theme(b_stop, "danger_button")
 
                     # Правая колонка: QR-код
@@ -1169,6 +1180,10 @@ class SeaBattleApp:
     def _menu_from_modal(self):
         if dpg.does_item_exist("modal_game_over"):
             dpg.delete_item("modal_game_over")
+        if self.room_locked:
+            self.stop_room()
+        else:
+            self._clear_session()
         self.show_page("home")
 
     def _log(self, text):
@@ -1388,6 +1403,7 @@ class SeaBattleApp:
 
     def create_room(self):
         self.mode = "multiplayer"
+        self.room_locked = True
         if self.size != 10:
             self.size = 10
             self.selected_size = 4
@@ -1414,15 +1430,22 @@ class SeaBattleApp:
         if dpg.does_item_exist("qr_container"):
             dpg.delete_item("qr_container", children_only=True)
             dpg.add_image("qr_texture", width=230, height=230, tag="qr_image", parent="qr_container")
+        self._save_session()
         self.notify(f"Комната создана: {self.relay.room_code}")
 
     def stop_room(self):
+        if self.relay.is_connected:
+            self.relay.send_to_phone({"action": "room_closed"})
         self.relay.stop()
         self.phone_ready = False
+        self.room_locked = False
+        self.phase = "placement"
+        self.turn = "player"
+        self._clear_session()
         if dpg.does_item_exist("room_code"):
             dpg.set_value("room_code", "— — — — —")
         if dpg.does_item_exist("network_status"):
-            dpg.set_value("network_status", "Комната остановлена")
+            dpg.set_value("network_status", "Вы вышли из комнаты")
         if dpg.does_item_exist("join_url"):
             dpg.set_value("join_url", "")
         if dpg.does_item_exist("qr_container"):
@@ -1430,9 +1453,107 @@ class SeaBattleApp:
             with dpg.child_window(width=230, height=230, border=True, no_scrollbar=True, parent="qr_container"):
                 dpg.add_spacer(height=95)
                 dpg.add_text("Нажмите\n«Создать комнату»", color=(120, 130, 145), indent=45)
-        self.notify("Комната остановлена")
+        self.notify("Вы вышли из комнаты")
+
+    def _save_session(self):
+        try:
+            payload = {
+                "mode": self.mode,
+                "room_code": self.relay.room_code,
+                "room_locked": self.room_locked,
+                "phase": self.phase,
+                "turn": self.turn,
+                "size": self.size,
+                "difficulty": self.difficulty,
+                "current_page": self.current_page,
+                "phone_ready": self.phone_ready,
+                "player_grid": self.player.grid,
+                "player_ships": [
+                    {"size": s.size, "cells": s.cells, "hits": list(s.hits), "orientation": s.orientation}
+                    for s in self.player.ships
+                ],
+                "enemy_grid": self.enemy.grid,
+                "enemy_ships": [
+                    {"size": s.size, "cells": s.cells, "hits": list(s.hits), "orientation": s.orientation}
+                    for s in self.enemy.ships
+                ],
+            }
+            SESSION_FILE.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _clear_session(self):
+        try:
+            if SESSION_FILE.exists():
+                SESSION_FILE.unlink()
+        except Exception:
+            pass
+
+    def _restore_session(self) -> str:
+        if not SESSION_FILE.exists():
+            return "home"
+        try:
+            data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+            if not (data.get("room_locked") or data.get("phase") == "battle"):
+                return "home"
+            self.mode = data.get("mode", "bot")
+            self.size = int(data.get("size", 10))
+            self.difficulty = data.get("difficulty", "smart")
+            self.phase = data.get("phase", "placement")
+            self.turn = data.get("turn", "player")
+            self.room_locked = bool(data.get("room_locked", False))
+            self.phone_ready = bool(data.get("phone_ready", False))
+
+            self.player = Board(self.size)
+            self.player.grid = data.get("player_grid", self.player.grid)
+            self.player.ships = []
+            for sd in data.get("player_ships", []):
+                sh = Ship(sd["size"], [tuple(c) for c in sd["cells"]], sd.get("orientation", "H"))
+                sh.hits = {tuple(h) for h in sd.get("hits", [])}
+                self.player.ships.append(sh)
+
+            self.enemy = Board(self.size, {} if self.mode == "multiplayer" else None)
+            self.enemy.grid = data.get("enemy_grid", self.enemy.grid)
+            self.enemy.ships = []
+            for sd in data.get("enemy_ships", []):
+                sh = Ship(sd["size"], [tuple(c) for c in sd["cells"]], sd.get("orientation", "H"))
+                sh.hits = {tuple(h) for h in sd.get("hits", [])}
+                self.enemy.ships.append(sh)
+
+            self.bot = BattleshipBot(self.size, self.difficulty)
+            if self.room_locked and data.get("room_code"):
+                self.relay.room_code = data["room_code"]
+                w, h, qdata = self.relay.generate_qr_texture_data()
+                if dpg.does_item_exist("qr_texture"):
+                    dpg.delete_item("qr_texture")
+                with dpg.texture_registry(show=False):
+                    dpg.add_static_texture(w, h, qdata, tag="qr_texture")
+                threading.Thread(target=lambda: self.relay.start(self.relay.room_code), daemon=True).start()
+
+            page = data.get("current_page", "home")
+            if page in ("game", "placement", "multiplayer"):
+                self.notify("Сессия восстановлена!")
+                return page
+        except Exception:
+            self._clear_session()
+        return "home"
 
     def _process_events(self):
+        now = time.monotonic()
+        if self.relay.is_connected and (now - self._last_heartbeat_sent) >= 3.0:
+            self._last_heartbeat_sent = now
+            self.relay.send_to_phone({"action": "heartbeat"})
+
+        if (
+            self.relay.is_phone_connected
+            and self.relay.last_phone_seen > 0
+            and (now - self.relay.last_phone_seen) > 12.0
+        ):
+            self.relay.is_phone_connected = False
+            self.relay.last_phone_seen = 0.0
+            self.phone_ready = False
+            self.events.put(("phone_afk", None))
+
         if self.relay.is_connected and dpg.does_item_exist("network_status") and dpg.get_value("network_status") == "Подключение к брокеру...":
             dpg.set_value("network_status", "Комната готова. Ожидание подключения смартфона...")
         try:
@@ -1451,6 +1572,15 @@ class SeaBattleApp:
                     if dpg.does_item_exist("network_status"):
                         dpg.set_value("network_status", "Телефон подключен")
                     self.notify("Телефон подключен!")
+                elif action in ("phone_left", "phone_afk"):
+                    self.phone_ready = False
+                    msg = "Смартфон вышел из комнаты" if action == "phone_left" else "Смартфон отключился (AFK)"
+                    if dpg.does_item_exist("network_status"):
+                        dpg.set_value("network_status", msg)
+                    self.notify(msg, duration=3.0)
+                    if self.phase == "battle" and self.mode == "multiplayer":
+                        self.phase = "placement"
+                        self.show_page("multiplayer")
                 elif action == "phone_ready":
                     self.phone_ready = True
                     if dpg.does_item_exist("network_status"):
