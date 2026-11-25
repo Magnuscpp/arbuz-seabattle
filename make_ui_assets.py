@@ -286,7 +286,6 @@ def build_assets():
         ("home", "Главная", "Начало игры"),
         ("game", "Морской бой", "Поле боя 1x1"),
         ("multiplayer", "Мультиплеер", "Онлайн по QR"),
-        ("settings", "Настройки", "Параметры игры"),
         ("about", "О проекте", "Разбор кода"),
     ]
 
@@ -608,7 +607,7 @@ def build_assets():
         "brand_header", "toast_header",
         "icon_multiplayer_accent", "icon_win_accent", "icon_despair_accent",
     }
-    for p_name in ("home", "game", "multiplayer", "settings", "about"):
+    for p_name in ("home", "game", "multiplayer", "about"):
         for f_i in range(16):
             needed_stems.add(f"nav_{p_name}_{f_i}")
     for b_name in ("btn_rotate", "btn_clear", "btn_random", "btn_start"):

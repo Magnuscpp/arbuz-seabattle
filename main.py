@@ -93,7 +93,7 @@ class SeaBattleApp:
             _load_webp_texture(asset_dir / "toast_header.webp", "ui_toast_header")
 
             # 16-кадровые плавные табы
-            for page in ("home", "game", "multiplayer", "settings", "about"):
+            for page in ("home", "game", "multiplayer", "about"):
                 for frame in range(16):
                     _load_webp_texture(asset_dir / f"nav_{page}_{frame}.webp", f"ui_nav_{page}_{frame}")
 
@@ -210,7 +210,7 @@ class SeaBattleApp:
             dpg.add_spacer(height=16)
 
             # Табы меню с полной 200px шириной (без обрезки текста)
-            for page in ("home", "game", "multiplayer", "settings", "about"):
+            for page in ("home", "game", "multiplayer", "about"):
                 initial_frame = 15 if page == self.current_page else 0
                 dpg.add_image_button(
                     f"ui_nav_{page}_{initial_frame}",
@@ -370,7 +370,6 @@ class SeaBattleApp:
             "game": self._page_game,
             "placement": self._page_placement,
             "multiplayer": self._page_multiplayer,
-            "settings": self._page_settings,
             "about": self._page_about
         }
 
@@ -406,25 +405,27 @@ class SeaBattleApp:
 
                     dpg.add_spacer(height=18)
 
-                    with dpg.child_window(width=card_w, height=175, border=True, no_scrollbar=True):
+                    with dpg.child_window(width=card_w, height=166, border=True, no_scrollbar=True):
                         dpg.bind_item_theme(dpg.last_item(), "card_theme")
-                        with dpg.group(horizontal=True):
+                        dpg.add_spacer(height=2)
+                        with dpg.group(horizontal=True, horizontal_spacing=10, indent=4):
                             if dpg.does_item_exist("ui_icon_multiplayer_accent"):
-                                dpg.add_image("ui_icon_multiplayer_accent", width=30, height=30)
-                            with dpg.group():
-                                t2 = dpg.add_text("Сетевая игра с другом", color=(255, 255, 255))
-                                if self.fonts and "semibold" in self.fonts:
-                                    dpg.bind_item_font(t2, self.fonts["semibold"])
-                                dpg.add_text(
-                                    "Создайте комнату, передайте QR-код или ссылку второму игроку, расставьте корабли и сражайтесь в реальном времени.",
-                                    color=(140, 150, 168),
-                                    wrap=card_w - 70
-                                )
-                        dpg.add_spacer(height=14)
-                        with dpg.group(horizontal=True):
-                            b2 = dpg.add_button(label="Создать онлайн комнату", width=230, height=38, callback=self.choose_multiplayer)
+                                dpg.add_image("ui_icon_multiplayer_accent", width=24, height=24)
+                            t2 = dpg.add_text("Сетевая игра с другом", color=(255, 255, 255))
+                            if self.fonts and "semibold" in self.fonts:
+                                dpg.bind_item_font(t2, self.fonts["semibold"])
+                        dpg.add_spacer(height=4)
+                        dpg.add_text(
+                            "Создайте комнату, передайте QR-код или ссылку второму игроку, расставьте корабли и сражайтесь в реальном времени.",
+                            color=(140, 150, 168),
+                            wrap=card_w - 40,
+                            indent=4
+                        )
+                        dpg.add_spacer(height=10)
+                        with dpg.group(horizontal=True, horizontal_spacing=10, indent=4):
+                            b2 = dpg.add_button(label="Создать онлайн комнату", width=220, height=38, callback=self.choose_multiplayer)
                             dpg.bind_item_theme(b2, "primary_button")
-                            b_rules = dpg.add_button(label="О проекте", width=140, height=38, callback=lambda: self.show_page("about"))
+                            b_rules = dpg.add_button(label="О проекте", width=130, height=38, callback=lambda: self.show_page("about"))
                             dpg.bind_item_theme(b_rules, "secondary_button")
 
     def choose_multiplayer(self):
@@ -717,62 +718,6 @@ class SeaBattleApp:
                         dpg.add_spacer(height=8)
                         dpg.add_text(self.relay.get_join_url() if self.relay.is_connected else "", tag="join_url", wrap=230, color=(140, 160, 190))
 
-    def _page_settings(self):
-        card_w = min(680, self.view_width - self.sidebar_width - 45)
-        with dpg.group(tag="page_settings", show=True):
-            self._title("Настройки", "Внешний вид и параметры подключения")
-            dpg.add_spacer(height=8)
-            with dpg.group(indent=12):
-                t_theme = dpg.add_text("Тема оформления")
-                if self.fonts and "semibold" in self.fonts:
-                    dpg.bind_item_font(t_theme, self.fonts["semibold"])
-                dpg.add_spacer(height=4)
-                with dpg.group(horizontal=True):
-                    b_dark = dpg.add_button(
-                        label="Чёрная (Тёмная)",
-                        width=180,
-                        height=38,
-                        callback=lambda: self.set_theme_mode("dark")
-                    )
-                    dpg.bind_item_theme(b_dark, "primary_button" if self.theme_mode == "dark" else "secondary_button")
-                    b_light = dpg.add_button(
-                        label="Белая (Светлая)",
-                        width=180,
-                        height=38,
-                        callback=lambda: self.set_theme_mode("light")
-                    )
-                    dpg.bind_item_theme(b_light, "primary_button" if self.theme_mode == "light" else "secondary_button")
-
-                dpg.add_spacer(height=18)
-                dpg.add_separator()
-                dpg.add_spacer(height=14)
-
-                t_url = dpg.add_text("Адрес веб-клиента (GitHub Pages)")
-                if self.fonts and "semibold" in self.fonts:
-                    dpg.bind_item_font(t_url, self.fonts["semibold"])
-                dpg.add_spacer(height=4)
-                dpg.add_input_text(
-                    default_value=self.relay.github_pages_url,
-                    width=card_w - 24,
-                    tag="github_url",
-                    callback=lambda s, a: self.relay.set_github_pages_url(a)
-                )
-                dpg.add_spacer(height=10)
-                b_rst = dpg.add_button(
-                    label="Сбросить адрес по умолчанию",
-                    width=240,
-                    height=36,
-                    callback=self._reset_github_url
-                )
-                dpg.bind_item_theme(b_rst, "secondary_button")
-
-    def set_theme_mode(self, mode: str):
-        self.theme_mode = mode
-        apply_theme_mode(mode)
-        self.notify("Тема: Чёрная" if mode == "dark" else "Тема: Белая", duration=1.5)
-        if self.current_page == "settings":
-            self.show_page("settings", animate=False)
-
     def _page_about(self):
         card_w = min(840, self.view_width - self.sidebar_width - 45)
         wrap_w = card_w - 48
@@ -840,7 +785,7 @@ class SeaBattleApp:
                 add_code_line("_page_placement() | экран расстановки: слева сетка, справа карточки кораблей, виджет поворота и 4 кнопки.")
                 add_code_line("_page_game() | экран боя: два поля рядом (ваше и врага) со счётчиками живых кораблей и строкой хода.")
                 add_code_line("_page_multiplayer() | код комнаты, статус сети, кнопки запуска/выхода и QR-код для подключения.")
-                add_code_line("_page_settings(), _page_about() | настройки (формат поля и ссылка сайта) и эта справка.")
+                add_code_line("_page_about() | эта справка с разбором всего проекта.")
                 add_code_line("_board_widget(prefix, clickable, cell) | строит сетку из кнопок: верхние буквы А-К, левые цифры 1-10 и клетки.")
                 add_code_line("cell_click(), player_shot() | обработка клика: ставит/убирает корабль или отправляет выстрел противнику по сети.")
                 add_code_line("_update_ship_cards(), select_ship(), rotate(), auto_place(), clear_placement() | управление флотом при расстановке.")
