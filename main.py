@@ -17,7 +17,6 @@ import time
 import dearpygui.dearpygui as dpg
 from PIL import Image
 
-from bot import BattleshipBot
 from game_logic import Board, Ship, CELL_EMPTY, CELL_SHIP, CELL_MISS, CELL_HIT, CELL_SUNK
 from network_relay import NetworkRelay, generate_room_code
 from theme import create_themes, load_fonts
@@ -40,11 +39,9 @@ def _load_webp_texture(path: Path, tag: str):
 class SeaBattleApp:
     def __init__(self):
         self.size = 10
-        self.difficulty = "smart"
-        self.mode = "bot"
+        self.mode = "multiplayer"
         self.player = Board(self.size)
-        self.enemy = Board(self.size)
-        self.bot = BattleshipBot(self.size, self.difficulty)
+        self.enemy = Board(self.size, {})
         self.phase = "placement"
         self.turn = "player"
         self.orientation = "H"
@@ -104,7 +101,7 @@ class SeaBattleApp:
                 _load_webp_texture(path, f"ui_{path.stem}")
 
             # Используемые иконки
-            for icon in ("bot_accent", "multiplayer_accent", "win_accent", "despair_accent"):
+            for icon in ("multiplayer_accent", "win_accent", "despair_accent"):
                 _load_webp_texture(asset_dir / f"icon_{icon}.webp", f"ui_icon_{icon}")
 
             # Текстуры кнопок действий (обычные и с подсветкой при наведении)
@@ -238,7 +235,10 @@ class SeaBattleApp:
                 self.notify("Вы в комнате! Нажмите «Выйти из комнаты»", duration=2.5)
                 return
             if page == "game":
-                if self.phase == "battle":
+                if not self.room_locked:
+                    self.notify("Сначала создайте комнату в Мультиплеере!", duration=2.5)
+                    self.show_page("multiplayer")
+                elif self.phase == "battle":
                     self.show_page("game")
                 elif self.current_page == "placement":
                     pass
@@ -387,9 +387,7 @@ class SeaBattleApp:
         card_w = min(600, max(460, content_width - 50))
         indent_x = max(16, (content_width - card_w) // 2)
 
-        # Центрирование блока по вертикали:
-        # заголовок (~32) + подзаголовок (~22) + отступ (16) + карточка 1 (152) + отступ (14) + карточка 2 (152) = ~388px
-        total_block_h = 388
+        total_block_h = 260
         top_spacer_h = max(20, (content_height - total_block_h) // 2 - 30)
 
         with dpg.group(tag="page_home", show=True):
@@ -397,67 +395,41 @@ class SeaBattleApp:
             with dpg.group(horizontal=True):
                 dpg.add_spacer(width=indent_x)
                 with dpg.group():
-                    title = dpg.add_text("ТАКТИЧЕСКИЙ МОРСКОЙ БОЙ", color=(255, 255, 255))
+                    title = dpg.add_text("МОРСКОЙ БОЙ 1x1", color=(255, 255, 255))
                     if self.fonts and "title" in self.fonts:
                         dpg.bind_item_font(title, self.fonts["title"])
 
-                    sub = dpg.add_text("Настольная стратегия в темном стиле ImGui с искусственным интеллектом", color=(100, 110, 128))
+                    sub = dpg.add_text("Живая сетевая игра против реального противника", color=(115, 125, 140))
                     if self.fonts and "regular" in self.fonts:
                         dpg.bind_item_font(sub, self.fonts["regular"])
 
-                    dpg.add_spacer(height=16)
+                    dpg.add_spacer(height=18)
 
-                    # Карточка 1: Против бота
-                    with dpg.child_window(width=card_w, height=152, border=True, no_scrollbar=True):
-                        dpg.bind_item_theme(dpg.last_item(), "card_theme")
-                        with dpg.group(horizontal=True):
-                            if dpg.does_item_exist("ui_icon_bot_accent"):
-                                dpg.add_image("ui_icon_bot_accent", width=28, height=28)
-                            with dpg.group():
-                                t1 = dpg.add_text("Одиночный бой против ИИ", color=(255, 255, 255))
-                                if self.fonts and "semibold" in self.fonts:
-                                    dpg.bind_item_font(t1, self.fonts["semibold"])
-                                dpg.add_text("Интеллектуальный поиск целей Hunt & Target с шахматной чётностью.", color=(140, 150, 168), wrap=card_w - 65)
-                        dpg.add_spacer(height=6)
-                        with dpg.group(horizontal=True):
-                            b1 = dpg.add_button(label="Расставить флот", width=170, height=36, callback=self.choose_bot)
-                            dpg.bind_item_theme(b1, "primary_button")
-                            b_quick = dpg.add_button(label="Быстрый старт (Авто)", width=190, height=36, callback=self.quick_game)
-                            dpg.bind_item_theme(b_quick, "secondary_button")
-
-                    dpg.add_spacer(height=14)
-
-                    # Карточка 2: Мультиплеер
-                    with dpg.child_window(width=card_w, height=152, border=True, no_scrollbar=True):
+                    with dpg.child_window(width=card_w, height=175, border=True, no_scrollbar=True):
                         dpg.bind_item_theme(dpg.last_item(), "card_theme")
                         with dpg.group(horizontal=True):
                             if dpg.does_item_exist("ui_icon_multiplayer_accent"):
-                                dpg.add_image("ui_icon_multiplayer_accent", width=28, height=28)
+                                dpg.add_image("ui_icon_multiplayer_accent", width=30, height=30)
                             with dpg.group():
                                 t2 = dpg.add_text("Сетевая игра с другом", color=(255, 255, 255))
                                 if self.fonts and "semibold" in self.fonts:
                                     dpg.bind_item_font(t2, self.fonts["semibold"])
-                                dpg.add_text("Подключение второго игрока по коду комнаты или QR-коду.", color=(140, 150, 168), wrap=card_w - 65)
-                        dpg.add_spacer(height=6)
-                        b2 = dpg.add_button(label="Создать онлайн комнату", width=240, height=36, callback=self.choose_multiplayer)
-                        dpg.bind_item_theme(b2, "secondary_button")
-
-    def choose_bot(self):
-        self.mode = "bot"
-        self.new_game()
-        self.notify("Режим: Одиночная игра")
+                                dpg.add_text(
+                                    "Создайте комнату, передайте QR-код или ссылку второму игроку, расставьте корабли и сражайтесь в реальном времени.",
+                                    color=(140, 150, 168),
+                                    wrap=card_w - 70
+                                )
+                        dpg.add_spacer(height=14)
+                        with dpg.group(horizontal=True):
+                            b2 = dpg.add_button(label="Создать онлайн комнату", width=230, height=38, callback=self.choose_multiplayer)
+                            dpg.bind_item_theme(b2, "primary_button")
+                            b_rules = dpg.add_button(label="О проекте", width=140, height=38, callback=lambda: self.show_page("about"))
+                            dpg.bind_item_theme(b_rules, "secondary_button")
 
     def choose_multiplayer(self):
         self.mode = "multiplayer"
         self.show_page("multiplayer")
-        self.notify("Режим: Мультиплеер")
-
-    def quick_game(self):
-        self.mode = "bot"
-        self.new_game()
-        self.player.auto_place_all()
-        self.start_battle()
-        self.notify("Быстрый бой запущен!")
+        self.notify("Переход в онлайн комнату")
 
     def _page_game(self):
         panel_width = max(330, (self.view_width - self.sidebar_width - 45) // 2)
@@ -747,21 +719,40 @@ class SeaBattleApp:
     def _page_settings(self):
         card_w = min(680, self.view_width - self.sidebar_width - 45)
         with dpg.group(tag="page_settings", show=True):
-            self._title("Настройки", "Параметры применяются при создании следующего матча")
-            with dpg.child_window(width=card_w, height=self.view_height - 150, no_scrollbar=True):
+            self._title("Настройки", "Параметры сетевой игры 1x1 и адрес веб-клиента")
+            with dpg.child_window(width=card_w, height=265, no_scrollbar=True):
                 dpg.bind_item_theme(dpg.last_item(), "card_theme")
-                dpg.add_spacer(height=12)
-                dpg.add_text("Размер игрового поля", indent=16)
-                dpg.add_combo(items=["8 × 8", "10 × 10", "12 × 12"], default_value=f"{self.size} × {self.size}", width=240, indent=16, callback=self.change_size)
+                dpg.add_spacer(height=8)
 
-                dpg.add_spacer(height=16)
-                dpg.add_text("Интеллект бота", indent=16)
-                cur_diff = "Умный" if self.difficulty == "smart" else "Легкий"
-                dpg.add_combo(items=["Легкий", "Умный"], default_value=cur_diff, width=240, indent=16, callback=self.change_difficulty)
+                t_field = dpg.add_text("Формат игрового поля", indent=16)
+                if self.fonts and "semibold" in self.fonts:
+                    dpg.bind_item_font(t_field, self.fonts["semibold"])
+                dpg.add_text("10 x 10 (классический флот: 1x4, 2x3, 3x2, 4x1)", color=(140, 150, 168), indent=16)
 
-                dpg.add_spacer(height=16)
-                dpg.add_text("Адрес веб-клиента (GitHub Pages)", indent=16)
-                dpg.add_input_text(default_value=self.relay.github_pages_url, width=card_w - 40, indent=16, tag="github_url", callback=lambda s, a: self.relay.set_github_pages_url(a))
+                dpg.add_spacer(height=10)
+                dpg.add_separator()
+                dpg.add_spacer(height=10)
+
+                t_url = dpg.add_text("Адрес веб-клиента (GitHub Pages)", indent=16)
+                if self.fonts and "semibold" in self.fonts:
+                    dpg.bind_item_font(t_url, self.fonts["semibold"])
+                dpg.add_spacer(height=2)
+                dpg.add_input_text(
+                    default_value=self.relay.github_pages_url,
+                    width=card_w - 40,
+                    indent=16,
+                    tag="github_url",
+                    callback=lambda s, a: self.relay.set_github_pages_url(a)
+                )
+                dpg.add_spacer(height=10)
+                b_rst = dpg.add_button(
+                    label="Сбросить адрес по умолчанию",
+                    width=230,
+                    height=34,
+                    indent=16,
+                    callback=self._reset_github_url
+                )
+                dpg.bind_item_theme(b_rst, "secondary_button")
 
     def _page_about(self):
         card_w = min(840, self.view_width - self.sidebar_width - 45)
@@ -796,14 +787,13 @@ class SeaBattleApp:
                 add_section("1. Где что лежит в папке проекта")
                 add_code_line("main.py          - главный файл запуска, все окна, меню, клики и анимации")
                 add_code_line("game_logic.py    - правила морского боя, поле, корабли, выстрелы")
-                add_code_line("bot.py           - умный бот (поиск по клеткам + добивание)")
                 add_code_line("network_relay.py - связь с противником через облачный сервер и QR")
                 add_code_line("theme.py         - цвета, стили кнопок/клеток и загрузка шрифтов")
                 add_code_line("make_ui_assets.py- скрипт, который заранее рисует все WebP-иконки и кнопки")
                 add_code_line("assets/ui/       - папка со всеми готовыми картинками (WebP) и исходниками SVG")
                 add_code_line("web/index.html   - веб-версия сайта для игры с другого устройства")
                 add_code_line("build.py         - сборка программы в один SeaBattle.exe через PyInstaller")
-                add_code_line("tests/test_game.py - автотесты проверки правил, бота и размеров сетки")
+                add_code_line("tests/test_game.py - автотесты проверки правил и размеров сетки")
 
                 add_section("2. Где лежат картинки (фотки) и как они используются")
                 add_plain("В папке assets/ui/ лежат только нужные сжатые WebP-картинки (исходные векторы лежат в assets/ui/svg_sources/). В начале запуска main.py загружает их в видеопамять через PIL + _load_webp_texture:")
@@ -813,13 +803,13 @@ class SeaBattleApp:
                 add_code_line("ship_card_<n>_*.webp     - карточки кораблей (зеленые/красные квадратики)")
                 add_code_line("orient_<1..5>_frame_0..23.webp - 24 кадра вращения корабля при нажатии R")
                 add_code_line("btn_rotate/clear/random/start(_hov).webp - кнопки расстановки и их hover-вид")
-                add_code_line("icon_<name>_accent.webp  - иконки бота, мультиплеера, победы и поражения")
+                add_code_line("icon_<name>_accent.webp  - иконки мультиплеера, победы и поражения")
                 add_plain("QR-код не хранится файлом: network_relay.py (строки 61-80) рисует его на лету через библиотеку qrcode и кладет в текстуру qr_texture.")
 
                 add_section("3. main.py - главный файл (окно, меню, анимации и клики)")
-                add_plain("Импорты: json (сохранение сессии), queue (очередь событий из фонового потока сети), pathlib.Path (пути к файлам), sys (путь _MEIPASS внутри exe), threading (сеть без зависания окна), time (таймеры анимаций), dearpygui (весь GUI), PIL.Image (открытие WebP), а также локальные Board, Ship, BattleshipBot, NetworkRelay, create_themes, load_fonts.")
+                add_plain("Импорты: json (сохранение сессии), queue (очередь событий из фонового потока сети), pathlib.Path (пути к файлам), sys (путь _MEIPASS внутри exe), threading (сеть без зависания окна), time (таймеры анимаций), dearpygui (весь GUI), PIL.Image (открытие WebP), а также локальные Board, Ship, NetworkRelay, generate_room_code, create_themes, load_fonts.")
                 add_code_line("_load_webp_texture(path, tag) | открывает WebP через PIL, переводит пиксели в 0..1 через _INV255 и кладёт в GPU. Нужна при старте в build().")
-                add_code_line("SeaBattleApp.__init__ | создаёт доски player/enemy, бота, сетевой клиент и начальные флаги фазы, хода и анимаций.")
+                add_code_line("SeaBattleApp.__init__ | создаёт доски player/enemy, сетевой клиент и начальные флаги фазы, хода и анимаций.")
                 add_code_line("build() | грузит все WebP-картинки, создаёт окно, сайдбар, toast-окно, горячую клавишу R и крутит главный цикл 60 FPS.")
                 add_code_line("_sidebar(), _tab_for_page(), _nav_callback() | рисуют левое меню, переключают вкладки и блокируют выход из активной комнаты.")
                 add_code_line("notify(), _update_toast() | показывают уведомление слева сверху: плавно выезжает с -330px до 16px, уменьшает полоску и прячется.")
@@ -827,19 +817,19 @@ class SeaBattleApp:
                 add_code_line("_animate_page_transition() | при открытии вкладки сжимает верхний отступ с 24px до 1px: получается мягкий подъём контента.")
                 add_code_line("_animate_orient() | при повороте корабля крутит его иконку на +90° (6 кадров из 24) с замедлением в конце.")
                 add_code_line("show_page(page) | очищает правую часть окна, рисует выбранное меню и запускает refresh_all().")
-                add_code_line("_page_home(), choose_bot(), choose_multiplayer(), quick_game() | главный экран с карточками режимов и быстрым авто-стартом.")
+                add_code_line("_page_home(), choose_multiplayer() | главный экран с быстрым переходом к созданию комнаты 1x1.")
                 add_code_line("_page_placement() | экран расстановки: слева сетка, справа карточки кораблей, виджет поворота и 4 кнопки.")
                 add_code_line("_page_game() | экран боя: два поля рядом (ваше и врага) со счётчиками живых кораблей и строкой хода.")
                 add_code_line("_page_multiplayer() | код комнаты, статус сети, кнопки запуска/выхода и QR-код для подключения.")
-                add_code_line("_page_settings(), _page_about() | настройки (размер поля, сложность бота, ссылка сайта) и эта справка.")
+                add_code_line("_page_settings(), _page_about() | настройки (формат поля и ссылка сайта) и эта справка.")
                 add_code_line("_board_widget(prefix, clickable, cell) | строит сетку из кнопок: верхние буквы А-К, левые цифры 1-10 и клетки.")
-                add_code_line("cell_click(), player_shot(), bot_turn() | обработка клика: ставит/убирает корабль или стреляет по врагу и передаёт ход боту.")
+                add_code_line("cell_click(), player_shot() | обработка клика: ставит/убирает корабль или отправляет выстрел противнику по сети.")
                 add_code_line("_update_ship_cards(), select_ship(), rotate(), auto_place(), clear_placement() | управление флотом при расстановке.")
                 add_code_line("start_battle(), new_game(), finish(), show_game_over_dialog() | старт матча, сброс, завершение и модальное окно победы/поражения.")
                 add_code_line("refresh_all(), _refresh_board(), _get_cell_base_theme() | обновляют цвета, символы (■, •, ×) и счётчики на обоих полях.")
                 add_code_line("_update_button_hovers() | как работает подсветка кнопок: каждый кадр проверяет is_item_hovered(tag) и меняет текстуру на *_hov (и обратно).")
                 add_code_line("_update_board_hover() | как работает прицел: находит клетку под курсором, красит букву/цифру, лучи перекрестия и пишет [ Г-5 ].")
-                add_code_line("change_size(), change_difficulty(), copy_room_link(), create_room(), stop_room() | настройки матча и управление комнатой.")
+                add_code_line("_reset_github_url(), copy_room_link(), create_room(), stop_room() | настройки и управление комнатой.")
                 add_code_line("_save_session(), _restore_session(), _process_events(), _resize() | сохранение/восстановление игры, обмен ходами и адаптация окна.")
 
                 add_section("4. game_logic.py - правила, поле и корабли")
@@ -850,19 +840,13 @@ class SeaBattleApp:
                 add_code_line("Board.receive_shot() | принимает выстрел, возвращает miss/hit/sunk и при потоплении автоматически ставит промахи вокруг.")
                 add_code_line("Board.get_view(hide=True) | прячет живые корабли противника (туман войны), оставляя только выстрелы.")
 
-                add_section("5. bot.py - искусственный интеллект")
-                add_plain("Импорты: random, typing. Нужен для одиночной игры против бота в режимах easy и smart.")
-                add_code_line("register_shot_result() | запоминает попадание, при потоплении очищает очередь и вычеркивает клетки вокруг корабля.")
-                add_code_line("_update_target_queue_after_hit() | после 1 попадания проверяет 4 стороны крестом, после 2+ бьёт строго вдоль линии корабля.")
-                add_code_line("choose_shot() | выбирает клетку: сначала очередь добивания, затем шахматная сетка (r+c)%2==0, иначе случайно.")
-
-                add_section("6. network_relay.py - связь в сетевой игре")
+                add_section("5. network_relay.py - связь в сетевой игре")
                 add_plain("Импорты: json, random, string, threading, time, PIL.Image, paho.mqtt.client, qrcode.")
                 add_code_line("generate_room_code() | делает 5-значный код комнаты без путающихся символов (0/O, 1/I).")
                 add_code_line("generate_qr_texture_data() | генерирует QR-картинку со ссылкой ?room=КОД прямо в памяти для Dear PyGui.")
                 add_code_line("start(), _on_connect(), _on_message(), send_to_phone() | подключается к серверу и пересылает выстрелы и проверку активности между игроками.")
 
-                add_section("7. theme.py, make_ui_assets.py, web/index.html, build.py")
+                add_section("6. theme.py, make_ui_assets.py, web/index.html, build.py")
                 add_code_line("theme.py: create_themes(), load_fonts() | задаёт всю чёрно-белую палитру, скругления, цвета клеток и грузит шрифты Segoe UI / Calibri / Consolas.")
                 add_code_line("make_ui_assets.py: build_assets() | рендерит SVG через matplotlib/PIL в 264 сжатых WebP-файла в папке assets/ui/.")
                 add_code_line("web/index.html | веб-версия игры для браузера: сетевой обмен, вращение корабля по нажатию и прицел под пальцем.")
@@ -967,52 +951,11 @@ class SeaBattleApp:
             self.player_shot(r, c)
 
     def player_shot(self, r, c):
-        if self.mode == "multiplayer":
-            if self.enemy.get_cell(r, c) != CELL_EMPTY:
-                return
-            self.turn = "waiting"
-            self.relay.send_to_phone({"action": "incoming_shot", "r": r, "c": c})
-            self._log(f"Выстрел {Board.coord_to_str(r, c)}: ожидание...")
-            self.refresh_all()
+        if self.enemy.get_cell(r, c) != CELL_EMPTY:
             return
-
-        result, ship, misses = self.enemy.receive_shot(r, c)
-        if result in ("invalid", "already_shot"):
-            return
-        res_name = self._result_name(result)
-        self._log(f"Выстрел {Board.coord_to_str(r, c)}: {res_name}")
-        self.notify(f"Выстрел {Board.coord_to_str(r, c)}: {res_name}")
-
-        if self.enemy.is_all_sunk:
-            self.finish("Победа! Флот противника полностью уничтожен.", is_victory=True)
-            return
-
-        if result == "miss":
-            self.turn = "bot"
-            self.refresh_all()
-            dpg.set_frame_callback(dpg.get_frame_count() + 25, self.bot_turn)
-        else:
-            self.refresh_all()
-
-    def bot_turn(self):
-        if self.phase != "battle":
-            return
-        shot = self.bot.choose_shot()
-        if not shot:
-            return
-        r, c = shot
-        result, ship, misses = self.player.receive_shot(r, c)
-        self.bot.register_shot_result(r, c, result, ship.cells if ship else None, misses)
-        res_name = self._result_name(result)
-        self._log(f"Бот стреляет {Board.coord_to_str(r, c)}: {res_name}")
-
-        if self.player.is_all_sunk:
-            self.finish("Поражение. Ваш флот уничтожен.", is_victory=False)
-            return
-        if result == "miss":
-            self.turn = "player"
-        else:
-            dpg.set_frame_callback(dpg.get_frame_count() + 25, self.bot_turn)
+        self.turn = "waiting"
+        self.relay.send_to_phone({"action": "incoming_shot", "r": r, "c": c})
+        self._log(f"Выстрел {Board.coord_to_str(r, c)}: ожидание...")
         self.refresh_all()
 
     def _update_ship_cards(self):
@@ -1092,38 +1035,24 @@ class SeaBattleApp:
         if dpg.does_item_exist("placement_status_msg"):
             dpg.set_value("placement_status_msg", "")
 
-        if self.mode == "multiplayer":
-            if not self.phone_ready:
-                self._set_status("Противник еще не готов")
-                self.show_page("multiplayer")
-                self.notify("Ожидание готовности противника...")
-                return
-            self.enemy = Board(self.size, {})
-            self.enemy_sunk_count = 0
-            self.phase, self.turn, self.log = "battle", "player", ["Сетевой бой начался. Ваш ход!"]
-            self.relay.send_to_phone({"action": "game_start", "phone_turn": False, "size": self.size})
-            self.show_page("game")
-            self.notify("Сетевой бой начался! Ваш ход")
-            self.refresh_all()
+        if not self.phone_ready:
+            self._set_status("Противник еще не готов")
+            self.show_page("multiplayer")
+            self.notify("Ожидание готовности противника...")
             return
-
-        self.enemy = Board(self.size)
-        self.enemy.auto_place_all()
+        self.enemy = Board(self.size, {})
         self.enemy_sunk_count = 0
-        self.bot = BattleshipBot(self.size, self.difficulty)
-        self.phase, self.turn, self.log = "battle", "player", ["Бой начался. Ваш ход!"]
+        self.phase, self.turn, self.log = "battle", "player", ["Сетевой бой начался. Ваш ход!"]
+        self.relay.send_to_phone({"action": "game_start", "phone_turn": False, "size": self.size})
         self.show_page("game")
-        self.notify("Бой начался! Ваш ход")
+        self.notify("Сетевой бой начался! Ваш ход")
         self.refresh_all()
 
     def new_game(self, *args):
         self.player = Board(self.size)
-        self.enemy = Board(self.size)
-        self.bot = BattleshipBot(self.size, self.difficulty)
+        self.enemy = Board(self.size, {})
         self.phase, self.turn, self.log = "placement", "player", []
         self.enemy_sunk_count = 0
-        if self.mode != "multiplayer":
-            self.phone_ready = False
         self.show_page("placement")
         self.refresh_all()
 
@@ -1210,17 +1139,13 @@ class SeaBattleApp:
             dpg.set_value("player_alive", f"Кораблей: {self.player.count_alive_ships()}")
 
         if dpg.does_item_exist("enemy_alive"):
-            if self.mode == "bot":
-                enemy_count = self.enemy.count_alive_ships()
-            else:
-                total_enemy = sum(self.player.fleet_config.values())
-                enemy_count = max(0, total_enemy - self.enemy_sunk_count)
+            total_enemy = sum(self.player.fleet_config.values())
+            enemy_count = max(0, total_enemy - self.enemy_sunk_count)
             dpg.set_value("enemy_alive", f"Кораблей: {enemy_count}")
 
-        opponent = "противника" if self.mode == "multiplayer" else "бота"
         if dpg.does_item_exist("battle_status_line"):
             if self.phase == "battle":
-                st = "Ваш ход - выберите клетку на поле противника" if self.turn == "player" else f"Ход {opponent} (ожидание выстрела...)"
+                st = "Ваш ход - выберите клетку на поле противника" if self.turn == "player" else "Ход противника (ожидание выстрела...)"
                 dpg.set_value("battle_status_line", st)
                 dpg.configure_item("battle_status_line", color=(255, 255, 255) if self.turn == "player" else (249, 115, 22))
             elif self.phase == "finished":
@@ -1372,26 +1297,12 @@ class SeaBattleApp:
                 coord_str = Board.coord_to_str(r, c)
                 dpg.set_value(hint_tag, f"[ {coord_str} ]")
 
-    def change_size(self, sender, value):
-        new_size = int(value.split()[0])
-        if new_size == self.size:
-            return
-        self.size = new_size
-        self.player = Board(self.size)
-        self.enemy = Board(self.size)
-        self.bot = BattleshipBot(self.size, self.difficulty)
-        self.phase = "placement"
-        self.turn = "player"
-        self.enemy_sunk_count = 0
-        self.log = []
-        available_sizes = sorted(self.player.fleet_config.keys(), reverse=True)
-        self.selected_size = available_sizes[0]
-        self.notify(f"Размер поля: {self.size}×{self.size}")
-        self._set_status(f"Размер поля изменен на {self.size}×{self.size}.")
-
-    def change_difficulty(self, sender, value):
-        self.difficulty = "easy" if value == "Легкий" else "smart"
-        self.notify(f"Сложность: {value}")
+    def _reset_github_url(self):
+        default_url = "https://magnuscpp.github.io/arbuz-seabattle/"
+        self.relay.set_github_pages_url(default_url)
+        if dpg.does_item_exist("github_url"):
+            dpg.set_value("github_url", default_url)
+        self.notify("Адрес сброшен по умолчанию")
 
     def copy_room_link(self):
         url = self.relay.get_join_url()
@@ -1485,7 +1396,6 @@ class SeaBattleApp:
                 "phase": self.phase,
                 "turn": self.turn,
                 "size": self.size,
-                "difficulty": self.difficulty,
                 "current_page": self.current_page,
                 "phone_ready": self.phone_ready,
                 "enemy_sunk_count": self.enemy_sunk_count,
@@ -1518,9 +1428,8 @@ class SeaBattleApp:
             data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
             if not (data.get("room_locked") or data.get("phase") == "battle"):
                 return "home"
-            self.mode = data.get("mode", "bot")
+            self.mode = "multiplayer"
             self.size = int(data.get("size", 10))
-            self.difficulty = data.get("difficulty", "smart")
             self.phase = data.get("phase", "placement")
             self.turn = data.get("turn", "player")
             self.room_locked = bool(data.get("room_locked", False))
@@ -1535,15 +1444,10 @@ class SeaBattleApp:
                 sh.hits = {tuple(h) for h in sd.get("hits", [])}
                 self.player.ships.append(sh)
 
-            self.enemy = Board(self.size, {} if self.mode == "multiplayer" else None)
+            self.enemy = Board(self.size, {})
             self.enemy.grid = data.get("enemy_grid", self.enemy.grid)
             self.enemy.ships = []
-            for sd in data.get("enemy_ships", []):
-                sh = Ship(sd["size"], [tuple(c) for c in sd["cells"]], sd.get("orientation", "H"))
-                sh.hits = {tuple(h) for h in sd.get("hits", [])}
-                self.enemy.ships.append(sh)
 
-            self.bot = BattleshipBot(self.size, self.difficulty)
             if self.room_locked and data.get("room_code"):
                 self.relay.room_code = data["room_code"]
                 w, h, qdata = self.relay.generate_qr_texture_data()

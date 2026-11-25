@@ -283,11 +283,11 @@ def build_assets():
 
     # 3. Табы бокового меню шириной 200px (монохромный стиль)
     tabs = [
-        ("home", "Главная", "Быстрый старт"),
-        ("game", "Морской бой", "Одиночный бой"),
+        ("home", "Главная", "Начало игры"),
+        ("game", "Морской бой", "Поле боя 1x1"),
         ("multiplayer", "Мультиплеер", "Онлайн по QR"),
         ("settings", "Настройки", "Параметры игры"),
-        ("about", "О проекте", "Паспорт проекта"),
+        ("about", "О проекте", "Разбор кода"),
     ]
 
     NUM_FRAMES = 16
@@ -606,7 +606,7 @@ def build_assets():
     # Конвертируем только используемые ассеты в сжатый lossless WebP и удаляем временные/неиспользуемые PNG
     needed_stems = {
         "brand_header", "toast_header",
-        "icon_bot_accent", "icon_multiplayer_accent", "icon_win_accent", "icon_despair_accent",
+        "icon_multiplayer_accent", "icon_win_accent", "icon_despair_accent",
     }
     for p_name in ("home", "game", "multiplayer", "settings", "about"):
         for f_i in range(16):
