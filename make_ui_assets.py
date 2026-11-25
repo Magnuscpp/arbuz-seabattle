@@ -253,11 +253,8 @@ def build_assets():
     font_reg = ImageFont.truetype(str(font_reg_path), 11) if font_reg_path.exists() else ImageFont.load_default()
     font_sub = ImageFont.truetype(str(font_reg_path), 10) if font_reg_path.exists() else ImageFont.load_default()
 
-    # 1. Сохранение векторных SVG и одиночных иконок (белый/серый)
+    # 1. Сохранение одиночных иконок (белый/серый)
     for name, content in ICONS_SVG.items():
-        svg_full = f'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n  {content}\n</svg>'
-        (ROOT / f"{name}.svg").write_text(svg_full, encoding="utf-8")
-        
         # Акцентная иконка (#FFFFFF чистый белый)
         icon_accent = render_svg_to_image(content, size=24, color="#FFFFFF")
         icon_accent.save(ROOT / f"icon_{name}_accent.png")
@@ -269,12 +266,11 @@ def build_assets():
     # 2. Идеально выровненный бренд-хедер сайдбара (205x48) с белым boat.svg
     boat_glyph = render_svg_to_image(ICONS_SVG["boat"], size=24, color="#FFFFFF", stroke_width=2.2)
     brand_im = Image.new("RGBA", (205, 48), (0, 0, 0, 0))
-    # Иконка корабля слева (x=8, y=11)
-    brand_im.alpha_composite(boat_glyph, (8, 11))
+    # Иконка корабля слева (x=8, y=12)
+    brand_im.alpha_composite(boat_glyph, (8, 12))
     d_brand = ImageDraw.Draw(brand_im)
-    # Название SEA BATTLE идеально по одной линии с иконкой
-    d_brand.text((38, 9), "SEA BATTLE", font=font_header, fill=(255, 255, 255, 255))
-    d_brand.text((38, 29), "TACTICAL IMGUI EDITION", font=font_sub, fill=(130, 140, 155, 255))
+    # Название SEA BATTLE по центру линии с иконкой
+    d_brand.text((40, 24), "SEA BATTLE", font=font_header, fill=(255, 255, 255, 255), anchor="lm")
     brand_im.save(ROOT / "brand_header.png")
 
     # 2b. Идеально выровненный хедер уведомления (180x20) с белой галочкой и надписью «Уведомление» без скобок
@@ -628,7 +624,10 @@ def build_assets():
         if stem in needed_stems or is_card:
             with Image.open(png_path) as im_out:
                 im_out.convert("RGBA").save(png_path.with_suffix(".webp"), "WEBP", lossless=True, method=6)
-        png_path.unlink()
+        try:
+            png_path.unlink()
+        except OSError:
+            pass
 
     print("Все используемые ассеты сгенерированы и оптимизированы в WebP!")
 
