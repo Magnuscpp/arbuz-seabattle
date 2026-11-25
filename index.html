@@ -589,8 +589,11 @@ button.danger {
     </div>
   </div>
 
-  <div id="roomChip" class="room-chip">
-    <span id="roomCodeDisplay">КОМНАТА: —</span>
+  <div style="display: flex; align-items: center; gap: 8px;">
+    <div id="roomChip" class="room-chip">
+      <span id="roomCodeDisplay">КОМНАТА: —</span>
+    </div>
+    <button id="btnLeaveRoom" class="danger hidden" style="padding: 5px 10px; font-size: 12px;" onclick="leaveRoom()">Выйти</button>
   </div>
 </header>
 
@@ -695,7 +698,10 @@ button.danger {
   <div class="modal">
     <div id="modalTitle" class="modal-title">ИТОГИ МАТЧА</div>
     <div id="modalMsg" class="modal-msg">—</div>
-    <button class="primary" style="width: 100%; padding: 12px;" onclick="resetForNewGame()">Сыграть снова</button>
+    <div style="display: flex; gap: 8px;">
+      <button class="primary" style="flex: 1; padding: 12px;" onclick="resetForNewGame()">Сыграть снова</button>
+      <button class="danger" style="flex: 1; padding: 12px;" onclick="leaveRoom()">Выйти из комнаты</button>
+    </div>
   </div>
 </div>
 
@@ -717,6 +723,45 @@ let myTurn = false;
 let gameOver = false;
 let enemySunkCount = 0;
 let toastTimer = null;
+let hbInterval = null;
+let afkInterval = null;
+let lastPcSeen = 0;
+
+function stopRoomTimers() {
+  if (hbInterval) { clearInterval(hbInterval); hbInterval = null; }
+  if (afkInterval) { clearInterval(afkInterval); afkInterval = null; }
+}
+
+function leaveRoom(reasonMsg) {
+  stopRoomTimers();
+  if (client && client.connected && currentRoom) {
+    try {
+      client.publish(`seabattle/rooms/${currentRoom}/pc`, JSON.stringify({action: 'phone_leave'}), {qos: 1});
+    } catch (e) {}
+  }
+  if (client) {
+    try { client.end(true); } catch (e) {}
+    client = null;
+  }
+  currentRoom = '';
+  ownGridData.fill(0);
+  enemyGridData.fill(0);
+  ships = [];
+  myTurn = false;
+  gameOver = false;
+  enemySunkCount = 0;
+  lastPcSeen = 0;
+
+  document.getElementById('roomCodeDisplay').textContent = 'КОМНАТА: —';
+  const chip = document.getElementById('roomChip');
+  if (chip) chip.classList.remove('online');
+  document.getElementById('btnLeaveRoom').classList.add('hidden');
+  document.getElementById('modalOverlay').classList.add('hidden');
+  document.getElementById('screenPlacement').classList.add('hidden');
+  document.getElementById('screenBattle').classList.add('hidden');
+  document.getElementById('screenJoin').classList.remove('hidden');
+  showToast(reasonMsg || 'Вы вышли из комнаты');
+}
 
 const urlParams = new URLSearchParams(window.location.search);
 const roomFromUrl = (urlParams.get('room') || '').trim().toUpperCase();
@@ -1136,8 +1181,17 @@ function connectToRoom(roomCode) {
 
     client.on('connect', () => {
       if (chip) chip.classList.add('online');
+      document.getElementById('btnLeaveRoom').classList.remove('hidden');
       client.subscribe(`seabattle/rooms/${currentRoom}/phone`);
       sendMessage({action: 'phone_join'});
+      lastPcSeen = Date.now();
+      stopRoomTimers();
+      hbInterval = setInterval(() => sendMessage({action: 'heartbeat'}), 3000);
+      afkInterval = setInterval(() => {
+        if (lastPcSeen > 0 && (Date.now() - lastPcSeen) > 12000) {
+          leaveRoom('ПК отключился (таймаут AFK)');
+        }
+      }, 2000);
       showToast('Подключено к комнате ' + currentRoom);
 
       document.getElementById('screenJoin').classList.add('hidden');
@@ -1245,6 +1299,17 @@ function showResultModal(isWin, title, msg) {
 }
 
 function handleServerMessage(m) {
+  lastPcSeen = Date.now();
+
+  if (m.action === 'room_closed') {
+    leaveRoom('Комната закрыта на ПК');
+    return;
+  }
+
+  if (m.action === 'heartbeat') {
+    return;
+  }
+
   if (m.action === 'join_accepted') {
     showToast('Соединение с ПК установлено');
   }
