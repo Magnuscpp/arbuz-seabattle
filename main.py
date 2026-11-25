@@ -461,7 +461,7 @@ class SeaBattleApp:
 
     def _page_game(self):
         panel_width = max(330, (self.view_width - self.sidebar_width - 45) // 2)
-        panel_height = max(380, self.view_height - 180)
+        panel_height = max(340, self.view_height - 205)
         max_cell_w = (panel_width - 56 - 2 * self.size) // self.size
         max_cell_h = (panel_height - 76 - 2 * self.size) // (self.size + 1)
         cell = max(18, min(50, max_cell_w, max_cell_h))
@@ -497,7 +497,7 @@ class SeaBattleApp:
                     dpg.add_spacer(height=6)
                     self._board_widget("enemy", clickable=True, cell=cell)
 
-            dpg.add_spacer(height=10)
+            dpg.add_spacer(height=4)
             status_banner = dpg.add_text("Матч еще не начат", tag="battle_status_line", color=(240, 243, 248), indent=16)
             if self.fonts and "semibold" in self.fonts:
                 dpg.bind_item_font(status_banner, self.fonts["semibold"])

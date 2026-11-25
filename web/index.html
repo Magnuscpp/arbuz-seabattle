@@ -233,8 +233,8 @@ button.danger {
 
 /* Сетка игрового поля 1:1 как на ПК */
 .board-wrap {
-  width: 100%;
-  max-width: 420px;
+  width: calc(100% - 24px);
+  max-width: 350px;
   margin: 0 auto;
 }
 
@@ -245,7 +245,7 @@ button.danger {
   gap: 2px;
   background: var(--panel);
   padding: 2px;
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .coord-label {
@@ -661,7 +661,7 @@ button.danger {
   <div id="screenBattle" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
     <div id="turnBanner" class="turn-banner enemy-turn">
       <span id="turnText">Ожидание начала боя...</span>
-      <span id="fleetCounters" style="font-size: 12px; opacity: 0.9;">10 vs 10</span>
+      <span id="fleetCounters" style="font-size: 12px; opacity: 0.9;">10 против 10</span>
     </div>
 
     <section class="card">
@@ -809,7 +809,7 @@ function updateFleetCounters() {
   const ownAlive = ships.filter(sh => !sh.cells.every(([cr, cc]) => ownGridData[cr * SIZE + cc] === 4)).length;
   const enemyAlive = Math.max(0, 10 - enemySunkCount);
   const fc = document.getElementById('fleetCounters');
-  if (fc) fc.textContent = `${ownAlive} vs ${enemyAlive}`;
+  if (fc) fc.textContent = `${ownAlive} против ${enemyAlive}`;
   const oa = document.getElementById('ownAliveText');
   if (oa) oa.textContent = `Кораблей: ${ownAlive}`;
   const ea = document.getElementById('enemyAliveText');
@@ -938,9 +938,6 @@ function buildGridDOM(container, cellData, hintId, onCellClick) {
   }
 
   let isTouching = false;
-  let touchStartX = 0;
-  let touchStartY = 0;
-  let touchMoved = false;
 
   container.onmousemove = (e) => {
     if (isTouching) return;
@@ -961,23 +958,16 @@ function buildGridDOM(container, cellData, hintId, onCellClick) {
 
   container.ontouchstart = (e) => {
     isTouching = true;
-    touchMoved = false;
     const t = e.touches[0];
     if (!t) return;
-    touchStartX = t.clientX;
-    touchStartY = t.clientY;
     const pos = cellAtPoint(t.clientX, t.clientY);
     if (pos) applyCrosshair(pos[0], pos[1]);
   };
 
   container.ontouchmove = (e) => {
+    e.preventDefault();
     const t = e.touches[0];
     if (!t) return;
-    if (Math.abs(t.clientX - touchStartX) > 10 || Math.abs(t.clientY - touchStartY) > 10) {
-      touchMoved = true;
-      clearCrosshair();
-      return;
-    }
     const pos = cellAtPoint(t.clientX, t.clientY);
     if (pos) applyCrosshair(pos[0], pos[1]);
     else clearCrosshair();
@@ -987,7 +977,7 @@ function buildGridDOM(container, cellData, hintId, onCellClick) {
     const t = e.changedTouches[0];
     const pos = t ? cellAtPoint(t.clientX, t.clientY) : activeHover;
     clearCrosshair();
-    if (!touchMoved && pos && onCellClick) {
+    if (pos && onCellClick) {
       e.preventDefault();
       onCellClick(pos[0], pos[1]);
     }
