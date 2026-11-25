@@ -19,7 +19,7 @@ from PIL import Image
 
 from bot import BattleshipBot
 from game_logic import Board, Ship, CELL_EMPTY, CELL_SHIP, CELL_MISS, CELL_HIT, CELL_SUNK
-from network_relay import NetworkRelay
+from network_relay import NetworkRelay, generate_room_code
 from theme import create_themes, load_fonts
 
 _INV255 = tuple(i / 255.0 for i in range(256))
@@ -1410,21 +1410,34 @@ class SeaBattleApp:
         self.new_game()
 
     def create_room(self):
+        if self.relay.is_connected:
+            self.relay.send_to_phone({"action": "room_closed"})
+        self.relay.stop()
         self.mode = "multiplayer"
         self.room_locked = True
         if self.size != 10:
             self.size = 10
             self.selected_size = 4
+        self.player = Board(self.size)
+        self.enemy = Board(self.size, {})
+        self.phase = "placement"
+        self.turn = "player"
+        self.log = []
+        self.enemy_sunk_count = 0
         self.phone_ready = False
+
+        new_code = generate_room_code()
+        self.relay.room_code = new_code
+
         if dpg.does_item_exist("room_code"):
-            dpg.set_value("room_code", self.relay.room_code)
+            dpg.set_value("room_code", new_code)
         if dpg.does_item_exist("join_url"):
             dpg.set_value("join_url", self.relay.get_join_url())
         if dpg.does_item_exist("network_status"):
             dpg.set_value("network_status", "Подключение к серверу...")
 
         def _connect_bg():
-            self.relay.start()
+            self.relay.start(new_code)
             self.events.put(("room_updated", None))
 
         threading.Thread(target=_connect_bg, daemon=True).start()
@@ -1439,7 +1452,7 @@ class SeaBattleApp:
             dpg.delete_item("qr_container", children_only=True)
             dpg.add_image("qr_texture", width=230, height=230, tag="qr_image", parent="qr_container")
         self._save_session()
-        self.notify(f"Комната создана: {self.relay.room_code}")
+        self.notify(f"Комната создана: {new_code}")
 
     def stop_room(self):
         if self.relay.is_connected:
