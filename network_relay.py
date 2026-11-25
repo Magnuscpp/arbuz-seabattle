@@ -48,11 +48,14 @@ class NetworkRelay:
         self.on_phone_shot: Optional[Callable[[int, int], None]] = None
         self.on_defense_result: Optional[Callable[[dict], None]] = None
         self.on_phone_restart: Optional[Callable[[], None]] = None
+        self.on_error: Optional[Callable[[str], None]] = None
 
         self._lock = threading.Lock()
 
     def set_github_pages_url(self, url: str):
-        self.github_pages_url = url.rstrip('/') + '/'
+        cleaned = (url or "").strip()
+        if cleaned:
+            self.github_pages_url = cleaned.rstrip('/') + '/'
 
     def get_join_url(self) -> str:
         """Возвращает готовую ссылку для подключения телефона к текущей комнате."""
@@ -102,6 +105,8 @@ class NetworkRelay:
             self.client.loop_start()
         except Exception as e:
             print(f"[NetworkRelay] Ошибка подключения к брокеру: {e}")
+            if self.on_error:
+                self.on_error(str(e))
 
     def _on_connect(self, client, userdata, flags, rc, properties=None):
         if rc == 0:

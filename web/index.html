@@ -586,7 +586,7 @@ button.danger {
   <div class="modal">
     <div id="modalTitle" class="modal-title">ИТОГИ МАТЧА</div>
     <div id="modalMsg" class="modal-msg">—</div>
-    <button class="primary" style="width: 100%; padding: 12px;" onclick="location.reload()">Сыграть снова</button>
+    <button class="primary" style="width: 100%; padding: 12px;" onclick="resetForNewGame()">Сыграть снова</button>
   </div>
 </div>
 
@@ -605,6 +605,30 @@ let ownGridData = Array(100).fill(0); // 0: empty, 1: ship, 2: miss, 3: hit, 4: 
 let enemyGridData = Array(100).fill(0);
 let myTurn = false;
 let gameOver = false;
+let enemySunkCount = 0;
+
+function updateFleetCounters() {
+  const ownAlive = ships.filter(sh => !sh.cells.every(([cr, cc]) => ownGridData[cr * SIZE + cc] === 4)).length;
+  const enemyAlive = Math.max(0, 10 - enemySunkCount);
+  const el = document.getElementById('fleetCounters');
+  if (el) el.textContent = `${ownAlive} vs ${enemyAlive}`;
+}
+
+function resetForNewGame() {
+  document.getElementById('modalOverlay').classList.add('hidden');
+  document.getElementById('screenBattle').classList.add('hidden');
+  document.getElementById('screenPlacement').classList.remove('hidden');
+  ownGridData.fill(0);
+  enemyGridData.fill(0);
+  ships = [];
+  myTurn = false;
+  gameOver = false;
+  enemySunkCount = 0;
+  updatePlacementView();
+  updateFleetCounters();
+  sendMessage({action: 'restart'});
+  showToast('Расставьте флот для новой игры');
+}
 
 // URL параметры
 const urlParams = new URLSearchParams(window.location.search);
@@ -987,7 +1011,11 @@ function handleServerMessage(m) {
 
     if (m.res === 'miss') showToast(`Промах (${LETTERS[m.c]}${m.r + 1})`);
     else if (m.res === 'hit') showToast(`Попадание! (${LETTERS[m.c]}${m.r + 1})`);
-    else if (m.res === 'sunk') showToast(`Корабль противника потоплен!`);
+    else if (m.res === 'sunk') {
+      enemySunkCount++;
+      showToast(`Корабль противника потоплен!`);
+    }
+    updateFleetCounters();
 
     if (m.all_sunk) {
       showResultModal(true, 'ПОБЕДА!', 'Вы потопили весь флот противника на ПК!');
@@ -1016,6 +1044,7 @@ function handleServerMessage(m) {
     const allSunk = ships.every(sh => sh.cells.every(([cr, cc]) => ownGridData[cr * SIZE + cc] === 4));
     sendMessage({action: 'defense_result', r: m.r, c: m.c, res, surrounding, all_sunk: allSunk});
     buildGridDOM(document.getElementById('gridOwnBattle'), ownGridData, null);
+    updateFleetCounters();
 
     myTurn = (res === 'miss');
     setTurnState(myTurn, myTurn ? 'ВАШ ХОД — Стреляйте!' : 'Ход противника на ПК');

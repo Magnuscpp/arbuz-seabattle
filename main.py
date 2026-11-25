@@ -15,11 +15,25 @@ import sys
 import threading
 import time
 import dearpygui.dearpygui as dpg
+from PIL import Image
 
 from bot import BattleshipBot
 from game_logic import Board, CELL_EMPTY, CELL_SHIP, CELL_MISS, CELL_HIT, CELL_SUNK
 from network_relay import NetworkRelay
 from theme import create_themes, load_fonts
+
+_INV255 = tuple(i / 255.0 for i in range(256))
+
+
+def _load_webp_texture(path: Path, tag: str):
+    """Быстрая загрузка WebP-изображения в статическую текстуру Dear PyGui через PIL."""
+    if not path.exists() or dpg.does_item_exist(tag):
+        return
+    with Image.open(path) as img:
+        rgba = img.convert("RGBA")
+        w, h = rgba.size
+        data = list(map(_INV255.__getitem__, rgba.tobytes()))
+    dpg.add_static_texture(w, h, data, tag=tag)
 
 
 class SeaBattleApp:
@@ -41,6 +55,8 @@ class SeaBattleApp:
         self.relay.on_phone_ready = lambda data: self.events.put(("phone_ready", data))
         self.relay.on_phone_shot = lambda r, c: self.events.put(("phone_shot", (r, c)))
         self.relay.on_defense_result = lambda data: self.events.put(("defense_result", data))
+        self.relay.on_phone_restart = lambda: self.events.put(("phone_restart", None))
+        self.relay.on_error = lambda err: self.events.put(("relay_error", err))
         self.phone_ready = False
         self.view_width, self.view_height = 1200, 740
         self.current_page = "home"
@@ -50,6 +66,7 @@ class SeaBattleApp:
         self.nav_animation = None
         self.page_transition = None
         self.orient_anim = None
+        self.orient_angle_idx = 1  # 0: 0° (Вверх), 1: 90° (Вправо / H), 2: 180° (Вниз), 3: 270° (Влево)
 
         # Система всплывающих уведомлений (Toast Notifications)
         self.toast_msg = None
@@ -64,66 +81,36 @@ class SeaBattleApp:
         create_themes()
         self.fonts = load_fonts()
 
-        # Загрузка текстур
+        # Загрузка текстур (оптимизированные WebP-ассеты)
         with dpg.texture_registry(show=False):
             dpg.add_static_texture(1, 1, [1.0, 1.0, 1.0, 1.0], tag="qr_texture")
             asset_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "assets" / "ui"
 
-            # Бренд-хедер
-            brand_path = asset_dir / "brand_header.png"
-            if brand_path.exists():
-                w, h, _, data = dpg.load_image(str(brand_path))
-                dpg.add_static_texture(w, h, data, tag="ui_brand_header")
-
-            # Хедер уведомления (галочка + Уведомление без скобок)
-            toast_path = asset_dir / "toast_header.png"
-            if toast_path.exists():
-                w, h, _, data = dpg.load_image(str(toast_path))
-                dpg.add_static_texture(w, h, data, tag="ui_toast_header")
+            _load_webp_texture(asset_dir / "brand_header.webp", "ui_brand_header")
+            _load_webp_texture(asset_dir / "toast_header.webp", "ui_toast_header")
 
             # 16-кадровые плавные табы
             for page in ("home", "game", "multiplayer", "settings", "about"):
                 for frame in range(16):
-                    path = asset_dir / f"nav_{page}_{frame}.png"
-                    if path.exists():
-                        w, h, _, data = dpg.load_image(str(path))
-                        dpg.add_static_texture(w, h, data, tag=f"ui_nav_{page}_{frame}")
+                    _load_webp_texture(asset_dir / f"nav_{page}_{frame}.webp", f"ui_nav_{page}_{frame}")
 
             # Динамические карточки кораблей (зеленые/красные квадраты и фон)
-            for path in asset_dir.glob("ship_card_*.png"):
-                tag = f"ui_{path.stem}"
-                if not dpg.does_item_exist(tag):
-                    w, h, _, data = dpg.load_image(str(path))
-                    dpg.add_static_texture(w, h, data, tag=tag)
+            for path in asset_dir.glob("ship_card_*.webp"):
+                _load_webp_texture(path, f"ui_{path.stem}")
 
-            # Одиночные иконки
-            for icon in ("boat", "home", "game", "multiplayer", "settings", "about", "rotate", "shuffle", "clear", "play", "check", "bot", "phone", "win", "despair"):
-                for suffix in ("", "_accent"):
-                    path = asset_dir / f"icon_{icon}{suffix}.png"
-                    if path.exists():
-                        w, h, _, data = dpg.load_image(str(path))
-                        dpg.add_static_texture(w, h, data, tag=f"ui_icon_{icon}{suffix}")
+            # Используемые иконки
+            for icon in ("bot_accent", "multiplayer_accent", "win_accent", "despair_accent"):
+                _load_webp_texture(asset_dir / f"icon_{icon}.webp", f"ui_icon_{icon}")
 
             # Текстуры кнопок действий (обычные и с подсветкой при наведении)
             for btn_name in ("btn_rotate", "btn_clear", "btn_random", "btn_start"):
                 for suffix in ("", "_hov"):
-                    p = asset_dir / f"{btn_name}{suffix}.png"
-                    if p.exists():
-                        w, h, _, data = dpg.load_image(str(p))
-                        dpg.add_static_texture(w, h, data, tag=f"ui_{btn_name}{suffix}")
+                    _load_webp_texture(asset_dir / f"{btn_name}{suffix}.webp", f"ui_{btn_name}{suffix}")
 
-            # Кадры анимации вращения ориентации корабля (0..90 градусов для каждого типа корабля)
+            # Кадры анимации вращения ориентации корабля (24 кадра для каждого типа)
             for sz in (1, 2, 3, 4, 5):
-                for f in range(7):
-                    p = asset_dir / f"orient_{sz}_frame_{f}.png"
-                    if p.exists():
-                        w, h, _, data = dpg.load_image(str(p))
-                        dpg.add_static_texture(w, h, data, tag=f"ui_orient_{sz}_frame_{f}")
-            for f in range(7):
-                p = asset_dir / f"orient_frame_{f}.png"
-                if p.exists() and not dpg.does_item_exist(f"ui_orient_frame_{f}"):
-                    w, h, _, data = dpg.load_image(str(p))
-                    dpg.add_static_texture(w, h, data, tag=f"ui_orient_frame_{f}")
+                for f in range(24):
+                    _load_webp_texture(asset_dir / f"orient_{sz}_frame_{f}.webp", f"ui_orient_{sz}_frame_{f}")
 
         dpg.create_viewport(
             title="Sea Battle - Tactical ImGui Edition",
@@ -149,8 +136,8 @@ class SeaBattleApp:
             no_scrollbar=True,
             no_collapse=True,
             show=False,
-            width=300,
-            height=68,
+            width=320,
+            height=84,
             pos=[16, 16]
         ):
             dpg.bind_item_theme("toast_window", "toast_theme")
@@ -159,13 +146,13 @@ class SeaBattleApp:
             else:
                 dpg.add_text("Уведомление", color=(215, 225, 238))
             dpg.add_spacer(height=3)
-            t_msg = dpg.add_text("", tag="toast_text", color=(255, 255, 255), wrap=272)
+            t_msg = dpg.add_text("", tag="toast_text", color=(255, 255, 255), wrap=292)
             if self.fonts and "toast" in self.fonts:
                 dpg.bind_item_font(t_msg, self.fonts["toast"])
             elif self.fonts and "semibold" in self.fonts:
                 dpg.bind_item_font(t_msg, self.fonts["semibold"])
             dpg.add_spacer(height=4)
-            dpg.add_progress_bar(tag="toast_progress", default_value=1.0, width=272, height=2)
+            dpg.add_progress_bar(tag="toast_progress", default_value=1.0, width=292, height=2)
             dpg.bind_item_theme("toast_progress", "toast_progress_theme")
 
         with dpg.handler_registry():
@@ -258,7 +245,7 @@ class SeaBattleApp:
         if dpg.does_item_exist("toast_text"):
             dpg.set_value("toast_text", message)
         if dpg.does_item_exist("toast_window"):
-            dpg.set_item_pos("toast_window", [-310, 16])
+            dpg.set_item_pos("toast_window", [-330, 16])
             dpg.show_item("toast_window")
             dpg.focus_item("toast_window")
 
@@ -273,7 +260,7 @@ class SeaBattleApp:
                 dpg.hide_item("toast_window")
             return
 
-        # Плавный слайд-ин слева: от -310 до 16
+        # Плавный слайд-ин слева: от -330 до 16
         TARGET_X = 16
         TARGET_Y = 16
         ANIM_IN = 0.16
@@ -282,12 +269,12 @@ class SeaBattleApp:
         if elapsed < ANIM_IN:
             factor = elapsed / ANIM_IN
             factor = 1.0 - (1.0 - factor) ** 2  # ease-out
-            curr_x = int(-310 + (TARGET_X - (-310)) * factor)
+            curr_x = int(-330 + (TARGET_X - (-330)) * factor)
         elif elapsed > self.toast_duration - ANIM_OUT:
             factor = (self.toast_duration - elapsed) / ANIM_OUT
             factor = max(0.0, factor)
             factor = 1.0 - (1.0 - factor) ** 2
-            curr_x = int(-310 + (TARGET_X - (-310)) * factor)
+            curr_x = int(-330 + (TARGET_X - (-330)) * factor)
         else:
             curr_x = TARGET_X
 
@@ -334,13 +321,14 @@ class SeaBattleApp:
             self.page_transition = None
 
     def _animate_orient(self):
-        """Плавное вращение корабля-штурвала при смене ориентации."""
+        """Плавное вращение корабля по часовой стрелке на 90 градусов."""
         if self.orient_anim is None:
             return
         start_f, end_f, started = self.orient_anim
-        progress = min(1.0, (time.monotonic() - started) / 0.16)
-        curr_f = int(round(start_f + (end_f - start_f) * progress))
-        curr_f = max(0, min(6, curr_f))
+        progress = min(1.0, (time.monotonic() - started) / 0.18)
+        t = progress
+        eased = 1.0 - (1.0 - t) * (1.0 - t)  # quadratic ease-out
+        curr_f = int(round(start_f + (end_f - start_f) * eased)) % 24
         tex = f"ui_orient_{self.selected_size}_frame_{curr_f}"
         if not dpg.does_item_exist(tex):
             tex = f"ui_orient_frame_{curr_f}"
@@ -349,7 +337,7 @@ class SeaBattleApp:
         if progress >= 1.0:
             self.orient_anim = None
 
-    def show_page(self, page):
+    def show_page(self, page, animate=True):
         self._hovered_cell = None
         previous_page = self.current_page
         self.current_page = page
@@ -375,10 +363,10 @@ class SeaBattleApp:
         }
 
         with dpg.group(parent="content"):
-            dpg.add_spacer(height=24, tag="page_top_spacer")
+            dpg.add_spacer(height=24 if animate else 1, tag="page_top_spacer")
             builders[page]()
 
-        self.page_transition = (page, time.monotonic())
+        self.page_transition = (page, time.monotonic()) if animate else None
         dpg.set_y_scroll("content", 0)
         self.refresh_all()
 
@@ -463,7 +451,9 @@ class SeaBattleApp:
     def _page_game(self):
         panel_width = max(330, (self.view_width - self.sidebar_width - 45) // 2)
         panel_height = max(380, self.view_height - 180)
-        cell = max(26, min(50, (panel_width - 55) // self.size, (panel_height - 90) // (self.size + 1)))
+        max_cell_w = (panel_width - 56 - 2 * self.size) // self.size
+        max_cell_h = (panel_height - 76 - 2 * self.size) // (self.size + 1)
+        cell = max(18, min(50, max_cell_w, max_cell_h))
 
         with dpg.group(tag="page_game", show=True):
             self._title("Морской бой", "Уничтожьте все корабли флота противника раньше, чем он уничтожит ваш")
@@ -503,10 +493,12 @@ class SeaBattleApp:
 
     def _page_placement(self):
         available = self.view_width - self.sidebar_width - 45
-        left_width = max(330, min(int(available * 0.50), available - 460))
+        left_width = max(310, min(int(available * 0.45), available - 495))
         right_width = available - left_width - 10
         panel_height = max(550, self.view_height - 140)
-        cell = max(26, min(56, (left_width - 60) // self.size, (panel_height - 90) // (self.size + 1)))
+        max_cell_w = (left_width - 56 - 2 * self.size) // self.size
+        max_cell_h = (panel_height - 76 - 2 * self.size) // (self.size + 1)
+        cell = max(18, min(56, max_cell_w, max_cell_h))
 
         available_sizes = sorted(self.player.fleet_config.keys(), reverse=True)
         if self.selected_size not in available_sizes:
@@ -532,9 +524,10 @@ class SeaBattleApp:
                     dpg.bind_item_theme("placement_controls", "card_theme")
                     dpg.add_spacer(height=6)
 
-                    # Верхний блок: Выбор кораблей (слева) + Расположение (справа)
-                    with dpg.group(horizontal=True, indent=10):
-                        # Левая колонка: ВЫБОР КОРАБЛЯ и 4 карточки
+                    # Верхний блок: Выбор кораблей (слева) + Расположение (справа или ниже при узком окне)
+                    is_wide_right = right_width >= 480
+                    with dpg.group(horizontal=is_wide_right, indent=8):
+                        # Левая колонка: ВЫБОР КОРАБЛЯ и карточки
                         with dpg.group():
                             t_head = dpg.add_text("ВЫБОР КОРАБЛЯ")
                             if self.fonts and "semibold" in self.fonts:
@@ -565,25 +558,30 @@ class SeaBattleApp:
                                 dpg.bind_item_theme(f"ship_btn_{n}", "ui_image_button")
                                 dpg.add_spacer(height=3)
 
-                        dpg.add_spacer(width=16)
-
-                        # Правая колонка: РАСПОЛОЖЕНИЕ (справа от кораблей)
-                        with dpg.group():
-                            t_orient_title = dpg.add_text("РАСПОЛОЖЕНИЕ", color=(140, 150, 168))
-                            if self.fonts and "semibold" in self.fonts:
-                                dpg.bind_item_font(t_orient_title, self.fonts["semibold"])
+                        if is_wide_right:
+                            dpg.add_spacer(width=12)
+                        else:
                             dpg.add_spacer(height=6)
 
-                            # Чистая иконка активного корабля без рамок / квадратов
-                            curr_f = 0 if self.orientation == "H" else 6
+                        # Правая колонка: РАСПОЛОЖЕНИЕ (справа от кораблей)
+                        orient_img_size = 132 if is_wide_right else 84
+                        with dpg.group(horizontal=not is_wide_right):
+                            if is_wide_right:
+                                t_orient_title = dpg.add_text("РАСПОЛОЖЕНИЕ", color=(140, 150, 168))
+                                if self.fonts and "semibold" in self.fonts:
+                                    dpg.bind_item_font(t_orient_title, self.fonts["semibold"])
+                                dpg.add_spacer(height=6)
+
+                            # Иконка активного корабля, плавно вращающаяся по часовой стрелке как штурвал на 90°
+                            curr_f = (getattr(self, "orient_angle_idx", 1) * 6) % 24
                             ship_tex = f"ui_orient_{self.selected_size}_frame_{curr_f}"
                             if not dpg.does_item_exist(ship_tex):
                                 ship_tex = f"ui_orient_frame_{curr_f}"
 
                             b_orient_ship = dpg.add_image_button(
                                 ship_tex,
-                                width=64,
-                                height=64,
+                                width=orient_img_size,
+                                height=orient_img_size,
                                 frame_padding=0,
                                 callback=self.rotate,
                                 tag="orient_widget_btn",
@@ -591,51 +589,67 @@ class SeaBattleApp:
                             )
                             dpg.bind_item_theme(b_orient_ship, "ui_image_button")
 
-                            dpg.add_spacer(height=4)
-                            t_orient_val = dpg.add_text(
-                                "Горизонтальное" if self.orientation == "H" else "Вертикальное",
-                                tag="orientation_text",
-                                color=(255, 255, 255)
-                            )
-                            if self.fonts and "semibold" in self.fonts:
-                                dpg.bind_item_font(t_orient_val, self.fonts["semibold"])
-                            dpg.add_text("Поворот (R)", color=(110, 120, 135))
+                            if is_wide_right:
+                                dpg.add_spacer(height=4)
+                                t_orient_val = dpg.add_text(
+                                    "Горизонтальное" if self.orientation == "H" else "Вертикальное",
+                                    tag="orientation_text",
+                                    color=(255, 255, 255)
+                                )
+                                if self.fonts and "semibold" in self.fonts:
+                                    dpg.bind_item_font(t_orient_val, self.fonts["semibold"])
+                                dpg.add_text("Поворот (R)", color=(110, 120, 135))
+                            else:
+                                with dpg.group():
+                                    t_orient_title = dpg.add_text("РАСПОЛОЖЕНИЕ", color=(140, 150, 168))
+                                    if self.fonts and "semibold" in self.fonts:
+                                        dpg.bind_item_font(t_orient_title, self.fonts["semibold"])
+                                    t_orient_val = dpg.add_text(
+                                        "Горизонтальное" if self.orientation == "H" else "Вертикальное",
+                                        tag="orientation_text",
+                                        color=(255, 255, 255)
+                                    )
+                                    if self.fonts and "semibold" in self.fonts:
+                                        dpg.bind_item_font(t_orient_val, self.fonts["semibold"])
+                                    dpg.add_text("Поворот (R)", color=(110, 120, 135))
 
                     dpg.add_spacer(height=6)
                     dpg.add_separator()
                     dpg.add_spacer(height=6)
 
                     # Кнопки действий: Повернуть и Очистить, Случайная, Начать бой
-                    # Ширина 300px 1:1 совпадает с карточками и текстурами! Никакой растянутости!
+                    # Ровный шаг ровно 4px между всеми тремя рядами кнопок, ширина строго 300px 1:1
                     ctrl_btn_w = 300
-                    with dpg.group(horizontal=True, indent=10):
-                        if dpg.does_item_exist("ui_btn_rotate"):
-                            b_rot = dpg.add_image_button("ui_btn_rotate", width=146, height=36, frame_padding=0, callback=self.rotate, tag="placement_b_rot")
+                    with dpg.group(tag="placement_actions_group", indent=10):
+                        dpg.bind_item_theme("placement_actions_group", "placement_actions_theme")
+                        with dpg.group(horizontal=True):
+                            if dpg.does_item_exist("ui_btn_rotate"):
+                                b_rot = dpg.add_image_button("ui_btn_rotate", width=146, height=36, frame_padding=0, callback=self.rotate, tag="placement_b_rot")
+                            else:
+                                b_rot = dpg.add_button(label="Повернуть (R)", width=146, height=36, callback=self.rotate, tag="placement_b_rot")
+                            dpg.bind_item_theme(b_rot, "ui_image_button")
+
+                            dpg.add_spacer(width=8)
+
+                            if dpg.does_item_exist("ui_btn_clear"):
+                                b_clr = dpg.add_image_button("ui_btn_clear", width=146, height=36, frame_padding=0, callback=self.clear_placement, tag="placement_b_clr")
+                            else:
+                                b_clr = dpg.add_button(label="Очистить", width=146, height=36, callback=self.clear_placement, tag="placement_b_clr")
+                            dpg.bind_item_theme(b_clr, "ui_image_button")
+
+                        # Случайная расстановка (строго через 4px от первого ряда)
+                        if dpg.does_item_exist("ui_btn_random"):
+                            b_rnd = dpg.add_image_button("ui_btn_random", width=ctrl_btn_w, height=36, frame_padding=0, callback=self.auto_place, tag="placement_b_rnd")
                         else:
-                            b_rot = dpg.add_button(label="Повернуть (R)", width=146, height=36, callback=self.rotate, tag="placement_b_rot")
-                        dpg.bind_item_theme(b_rot, "ui_image_button")
+                            b_rnd = dpg.add_button(label="Случайная расстановка", width=ctrl_btn_w, height=36, callback=self.auto_place, tag="placement_b_rnd")
+                        dpg.bind_item_theme(b_rnd, "ui_image_button")
 
-                        dpg.add_spacer(width=8)
-
-                        if dpg.does_item_exist("ui_btn_clear"):
-                            b_clr = dpg.add_image_button("ui_btn_clear", width=146, height=36, frame_padding=0, callback=self.clear_placement, tag="placement_b_clr")
+                        # Кнопка Начать бой (строго через 4px от случайной расстановки)
+                        if dpg.does_item_exist("ui_btn_start"):
+                            b_start = dpg.add_image_button("ui_btn_start", width=ctrl_btn_w, height=42, frame_padding=0, callback=self.start_battle, tag="start_button")
                         else:
-                            b_clr = dpg.add_button(label="Очистить", width=146, height=36, callback=self.clear_placement, tag="placement_b_clr")
-                        dpg.bind_item_theme(b_clr, "ui_image_button")
-
-                    # Случайная расстановка (плотно к первому ряду)
-                    if dpg.does_item_exist("ui_btn_random"):
-                        b_rnd = dpg.add_image_button("ui_btn_random", width=ctrl_btn_w, height=36, frame_padding=0, indent=10, callback=self.auto_place, tag="placement_b_rnd")
-                    else:
-                        b_rnd = dpg.add_button(label="Случайная расстановка", width=ctrl_btn_w, height=36, indent=10, callback=self.auto_place, tag="placement_b_rnd")
-                    dpg.bind_item_theme(b_rnd, "ui_image_button")
-
-                    # Кнопка Начать бой (плотно к случайной расстановке)
-                    if dpg.does_item_exist("ui_btn_start"):
-                        b_start = dpg.add_image_button("ui_btn_start", width=ctrl_btn_w, height=42, frame_padding=0, indent=10, callback=self.start_battle, tag="start_button")
-                    else:
-                        b_start = dpg.add_button(label="Начать бой", width=ctrl_btn_w, height=42, indent=10, callback=self.start_battle, tag="start_button")
-                    dpg.bind_item_theme(b_start, "ui_image_button")
+                            b_start = dpg.add_button(label="Начать бой", width=ctrl_btn_w, height=42, callback=self.start_battle, tag="start_button")
+                        dpg.bind_item_theme(b_start, "ui_image_button")
 
                     dpg.add_spacer(height=4)
                     dpg.add_text("", tag="placement_status_msg", indent=10, wrap=ctrl_btn_w)
@@ -643,7 +657,7 @@ class SeaBattleApp:
     def _page_multiplayer(self):
         panel_w = min(780, self.view_width - self.sidebar_width - 45)
         panel_h = max(520, self.view_height - 150)
-        col_left_w = max(340, panel_w - 280)
+        col_left_w = max(300, panel_w - 295)
         with dpg.group(tag="page_multiplayer", show=True):
             self._title("Онлайн мультиплеер", "Кроссплатформенный бой ПК ↔ Смартфон по протоколу MQTT")
             with dpg.child_window(width=panel_w, height=panel_h, no_scrollbar=True):
@@ -659,10 +673,23 @@ class SeaBattleApp:
                             dpg.bind_item_font(code_text, self.fonts["title"])
 
                         dpg.add_spacer(height=6)
+                        if self.phone_ready:
+                            net_msg = "Телефон готов. Расставьте флот и нажмите «Начать бой»"
+                            net_col = (255, 255, 255)
+                        elif self.relay.is_phone_connected:
+                            net_msg = "Телефон подключен"
+                            net_col = (255, 255, 255)
+                        elif self.relay.is_connected:
+                            net_msg = "Комната готова. Ожидание подключения смартфона..."
+                            net_col = (255, 255, 255)
+                        else:
+                            net_msg = "Комната не запущена"
+                            net_col = (140, 150, 168)
                         st_text = dpg.add_text(
-                            "Ожидание подключения..." if self.relay.is_connected else "Комната не запущена",
+                            net_msg,
                             tag="network_status",
-                            color=(255, 255, 255) if self.relay.is_connected else (140, 150, 168)
+                            color=net_col,
+                            wrap=col_left_w - 16
                         )
                         if self.fonts and "semibold" in self.fonts:
                             dpg.bind_item_font(st_text, self.fonts["semibold"])
@@ -673,10 +700,10 @@ class SeaBattleApp:
 
                         dpg.add_text("ИНСТРУКЦИЯ ПО ПОДКЛЮЧЕНИЮ:", color=(120, 130, 145))
                         dpg.add_spacer(height=4)
-                        dpg.add_text("1. Нажмите «Создать комнату»", color=(200, 210, 225))
-                        dpg.add_text("2. Отсканируйте QR-код камерой смартфона", color=(200, 210, 225))
-                        dpg.add_text("3. На смартфоне расставьте флот и нажмите «Готов»", color=(200, 210, 225))
-                        dpg.add_text("4. На ПК расставьте корабли и начните бой!", color=(200, 210, 225))
+                        dpg.add_text("1. Нажмите «Создать комнату»", color=(200, 210, 225), wrap=col_left_w - 16)
+                        dpg.add_text("2. Отсканируйте QR-код камерой смартфона", color=(200, 210, 225), wrap=col_left_w - 16)
+                        dpg.add_text("3. На смартфоне расставьте флот и нажмите «Готов»", color=(200, 210, 225), wrap=col_left_w - 16)
+                        dpg.add_text("4. На ПК расставьте корабли и начните бой!", color=(200, 210, 225), wrap=col_left_w - 16)
 
                         dpg.add_spacer(height=16)
                         with dpg.group(horizontal=True):
@@ -726,29 +753,109 @@ class SeaBattleApp:
                 dpg.add_input_text(default_value=self.relay.github_pages_url, width=card_w - 40, indent=16, tag="github_url", callback=lambda s, a: self.relay.set_github_pages_url(a))
 
     def _page_about(self):
-        card_w = min(740, self.view_width - self.sidebar_width - 45)
+        card_w = min(840, self.view_width - self.sidebar_width - 45)
+        wrap_w = card_w - 48
+        f_body = self.fonts.get("about") if self.fonts else None
+        f_head = self.fonts.get("about_bold") if self.fonts else None
+        f_mono = self.fonts.get("about_mono") if self.fonts else None
+
+        def add_section(title_txt):
+            dpg.add_spacer(height=10)
+            t = dpg.add_text(title_txt, color=(255, 255, 255), indent=12, wrap=wrap_w)
+            if f_head:
+                dpg.bind_item_font(t, f_head)
+            dpg.add_separator()
+            dpg.add_spacer(height=4)
+
+        def add_code_line(text, color=(180, 210, 255)):
+            t = dpg.add_text(text, color=color, indent=16, wrap=wrap_w)
+            if f_mono:
+                dpg.bind_item_font(t, f_mono)
+
+        def add_plain(text, color=(205, 212, 222)):
+            t = dpg.add_text(text, color=color, indent=16, wrap=wrap_w)
+            if f_body:
+                dpg.bind_item_font(t, f_body)
+
         with dpg.group(tag="page_about", show=True):
-            self._title("О проекте", "Школьный индивидуальный проект по информатике")
-            with dpg.child_window(width=card_w, height=self.view_height - 150, no_scrollbar=True):
-                dpg.bind_item_theme(dpg.last_item(), "card_theme")
+            self._title("О проекте", "Простой разбор: где что лежит, какие картинки, импорты и функции работают")
+            with dpg.child_window(width=card_w, height=self.view_height - 150, no_scrollbar=False):
+                dpg.bind_item_theme(dpg.last_item(), "about_card_theme")
+
+                add_section("1. Где что лежит в папке проекта")
+                add_code_line("main.py          — главный файл запуска, все окна, меню, клики и анимации")
+                add_code_line("game_logic.py    — правила морского боя, поле, корабли, выстрелы")
+                add_code_line("bot.py           — умный бот (поиск по клеткам + добивание)")
+                add_code_line("network_relay.py — связь с телефоном через облачный MQTT-брокер и QR")
+                add_code_line("theme.py         — цвета, стили кнопок/клеток и загрузка шрифтов")
+                add_code_line("make_ui_assets.py— скрипт, который заранее рисует все WebP-иконки и кнопки")
+                add_code_line("assets/ui/       — папка со всеми готовыми картинками (WebP) и исходниками SVG")
+                add_code_line("web/index.html   — мобильная версия сайта для игры с телефона")
+                add_code_line("build.py         — сборка программы в один SeaBattle.exe через PyInstaller")
+                add_code_line("tests/test_game.py — автотесты проверки правил, бота и размеров сетки")
+
+                add_section("2. Где лежат картинки (фотки) и как они используются")
+                add_plain("В папке assets/ui/ лежат только нужные сжатые WebP-картинки (исходные векторы лежат в assets/ui/svg_sources/). В начале запуска main.py загружает их в видеопамять через PIL + _load_webp_texture:")
+                add_code_line("brand_header.webp        — логотип SEA BATTLE вверху левого меню")
+                add_code_line("toast_header.webp        — шапка всплывающего уведомления слева сверху")
+                add_code_line("nav_<tab>_0..15.webp     — 16 кадров плавной анимации вкладок меню")
+                add_code_line("ship_card_<n>_*.webp     — карточки кораблей (зеленые/красные квадратики)")
+                add_code_line("orient_<1..5>_frame_0..23.webp — 24 кадра вращения корабля при нажатии R")
+                add_code_line("btn_rotate/clear/random/start(_hov).webp — кнопки расстановки и их hover-вид")
+                add_code_line("icon_<name>_accent.webp  — иконки бота, мультиплеера, победы и поражения")
+                add_plain("QR-код для телефона не хранится файлом: network_relay.py (строки 61–80) рисует его на лету через библиотеку qrcode и кладет в текстуру qr_texture.")
+
+                add_section("3. main.py — главный файл (окна, меню, события)")
+                add_plain("Импорты (строки 12–22): queue (очередь событий из сети), pathlib.Path (пути к файлам), sys (поиск папки _MEIPASS в .exe), threading (подключение к сети в фоне), time (таймеры анимаций), dearpygui (весь интерфейс), а также локальные BattleshipBot, Board, NetworkRelay и create_themes/load_fonts.")
+                add_code_line("строки 26–63   | __init__ — начальные переменные, доски, бот, сеть, анимации")
+                add_code_line("строки 65–207  | build — загрузка всех PNG-текстур, создание окна и цикл 60 FPS")
+                add_code_line("строки 209–254 | _sidebar, _tab_for_page, _nav_callback — левое меню и переходы")
+                add_code_line("строки 256–301 | notify, _update_toast — всплывающее окно уведомлений слева")
+                add_code_line("строки 303–354 | _animate_navigation, _animate_page_transition, _animate_orient")
+                add_code_line("строки 356–387 | show_page — очищает центр и рисует нужную вкладку")
+                add_code_line("строки 389–465 | _page_home, choose_bot, choose_multiplayer, quick_game — главная")
+                add_code_line("строки 467–508 | _page_game — экран боя с двумя полями и строкой статуса")
+                add_code_line("строки 510–671 | _page_placement — расстановка, карточки кораблей и кнопки")
+                add_code_line("строки 673–750 | _page_multiplayer — код комнаты, QR-код, кнопки подключения")
+                add_code_line("строки 752–769 | _page_settings — выбор размера поля, сложности и URL сайта")
+                add_code_line("строки 771–850 | _page_about — эта вкладка с описанием всего кода")
+                add_code_line("строки 852–990 | _board_widget, cell_click, player_shot, bot_turn — логика кликов")
+                add_code_line("строки 992–1120| select_ship, rotate, auto_place, clear_placement, start_battle")
+                add_code_line("строки 1122–1210| finish, show_game_over_dialog — финал игры и модальное окно")
+                add_code_line("строки 1212–1340| refresh_all, _update_button_hovers, _update_board_hover — перерисовка")
+                add_code_line("строки 1342–1490| change_size, create_room, stop_room, _process_events, _resize")
+
+                add_section("4. game_logic.py — правила и игровое поле")
+                add_plain("Импорты (строки 8–9): random (случайная расстановка) и typing (подсказки типов).")
+                add_code_line("строки 11–19  | LETTERS и константы клеток: EMPTY=0, SHIP=1, MISS=2, HIT=3, SUNK=4")
+                add_code_line("строки 22–58  | класс Ship — палубы, попадания, проверка потопления и клетки вокруг")
+                add_code_line("строки 61–112 | Board.__init__, reset, get_cell, can_place_ship (проверка без касаний)")
+                add_code_line("строки 114–172| place_ship, remove_ship_at, auto_place_all (авторасстановка флота)")
+                add_code_line("строки 174–193| is_fleet_complete, get_remaining_to_place — сколько осталось поставить")
+                add_code_line("строки 195–244| receive_shot — обработка выстрела (промах/ранил/потопил + ореол)")
+                add_code_line("строки 246–284| is_all_sunk, get_view (туман войны), count_alive_ships, coord_to_str")
+
+                add_section("5. bot.py — искусственный интеллект")
+                add_plain("Импорты (строки 12–13): random и typing. Работает в двух режимах: easy (случайные клетки) и smart (добивает раненые корабли и стреляет по шахматной сетке).")
+                add_code_line("строки 16–30  | BattleshipBot.__init__, reset — список непроверенных клеток unvisited")
+                add_code_line("строки 31–56  | register_shot_result — запоминает попадание и вычеркивает клетки вокруг")
+                add_code_line("строки 58–98  | _update_target_queue_after_hit — строит очередь добивания (крест/линия)")
+                add_code_line("строки 100–120| choose_shot — выбирает цель: очередь добивания -> шахматы -> случайно")
+
+                add_section("6. network_relay.py — онлайн-связь с телефоном")
+                add_plain("Импорты (строки 8–16): json, random, string, threading, time, PIL.Image, paho.mqtt.client, qrcode.")
+                add_code_line("строки 28–33  | generate_room_code — делает 5-значный код без похожих букв (0/O, 1/I)")
+                add_code_line("строки 36–80  | NetworkRelay, get_join_url, generate_qr_texture_data — ссылка и QR-код")
+                add_code_line("строки 82–118 | start, _on_connect, _on_disconnect — подключение к HiveMQ / EMQX")
+                add_code_line("строки 120–177| _on_message, send_to_phone, stop — обмен ходами по MQTT-топикам")
+
+                add_section("7. theme.py, make_ui_assets.py, web/index.html, build.py")
+                add_code_line("theme.py (строки 29–282)   | create_themes — цвета кнопок, карточек, клеток и скроллбара")
+                add_code_line("theme.py (строки 285–325)  | load_fonts — Segoe UI для игры, Calibri и Consolas для «О проекте»")
+                add_code_line("make_ui_assets.py (1–536)  | рендерит SVG через matplotlib/PIL в PNG-ассеты папки assets/ui")
+                add_code_line("web/index.html (1–1010)    | одностраничный сайт с MQTT (wss), сеткой и экраном боя для телефона")
+                add_code_line("build.py (1–40)            | запускает make_ui_assets.py и пакует проект в dist/SeaBattle.exe")
                 dpg.add_spacer(height=10)
-                t = dpg.add_text("ПАСПОРТ ПРОЕКТА: «МОРСКОЙ БОЙ»", color=(255, 255, 255), indent=16)
-                if self.fonts and "semibold" in self.fonts:
-                    dpg.bind_item_font(t, self.fonts["semibold"])
-                dpg.add_spacer(height=4)
-                dpg.add_separator()
-                dpg.add_spacer(height=8)
-
-                dpg.add_text("Цель работы:", color=(100, 110, 128), indent=16)
-                dpg.add_text("Разработка настольного приложения морского боя с искусственным интеллектом и кроссплатформенным мультиплеером ПК ↔ Смартфон без выделенного сервера.", wrap=card_w - 32, indent=16)
-                dpg.add_spacer(height=8)
-
-                dpg.add_text("Использованные технологии:", color=(100, 110, 128), indent=16)
-                dpg.add_text("• Интерфейс: Python + Dear PyGui (пользовательская темная тема в стиле Dear ImGui Aternos)\n• Искусственный интеллект: алгоритм Hunt & Target (поиск по шахматной четности + добивание)\n• Сетевой протокол: MQTT v5 поверх WebSockets (HiveMQ / EMQX)\n• Мобильный клиент: HTML5 Canvas + Vanilla JS\n• Тестирование: автоматические тесты pytest", indent=16)
-                dpg.add_spacer(height=8)
-
-                dpg.add_text("Правила игры:", color=(100, 110, 128), indent=16)
-                dpg.add_text("Классические правила: корабли не соприкасаются сторонами и углами (диагоналями). При попадании ход сохраняется. Побеждает игрок, первым потопивший все корабли соперника.", wrap=card_w - 32, indent=16)
 
     def _title(self, title, subtitle):
         dpg.add_spacer(height=4)
@@ -803,7 +910,15 @@ class SeaBattleApp:
             if self.phase != "placement":
                 return
             if self.player.get_cell(r, c) == CELL_SHIP:
-                self.player.remove_ship_at(r, c)
+                removed = self.player.remove_ship_at(r, c)
+                if removed:
+                    self.selected_size = removed.size
+                    curr_f = (getattr(self, "orient_angle_idx", 1) * 6) % 24
+                    tex = f"ui_orient_{self.selected_size}_frame_{curr_f}"
+                    if not dpg.does_item_exist(tex):
+                        tex = f"ui_orient_frame_{curr_f}"
+                    if dpg.does_item_exist("orient_widget_btn"):
+                        dpg.configure_item("orient_widget_btn", texture_tag=tex)
                 self.notify("Корабль убран с поля")
                 if dpg.does_item_exist("placement_status_msg"):
                     dpg.set_value("placement_status_msg", "")
@@ -816,6 +931,25 @@ class SeaBattleApp:
                     self.notify(f"Корабль ({self.selected_size} палуб) установлен")
                     if dpg.does_item_exist("placement_status_msg"):
                         dpg.set_value("placement_status_msg", "")
+                    # Автовыбор следующего доступного типа корабля, если текущий исчерпан
+                    rem_after = self.player.get_remaining_to_place()
+                    if rem_after.get(self.selected_size, 0) <= 0:
+                        for next_sz in sorted(rem_after.keys(), reverse=True):
+                            if rem_after[next_sz] > 0:
+                                self.selected_size = next_sz
+                                curr_f = (getattr(self, "orient_angle_idx", 1) * 6) % 24
+                                tex = f"ui_orient_{self.selected_size}_frame_{curr_f}"
+                                if not dpg.does_item_exist(tex):
+                                    tex = f"ui_orient_frame_{curr_f}"
+                                if dpg.does_item_exist("orient_widget_btn"):
+                                    dpg.configure_item("orient_widget_btn", texture_tag=tex)
+                                break
+            else:
+                msg = f"Все корабли ({self.selected_size} палуб) уже расставлены! Выберите другой тип."
+                if dpg.does_item_exist("placement_status_msg"):
+                    dpg.set_value("placement_status_msg", msg)
+                    dpg.configure_item("placement_status_msg", color=(248, 113, 113))
+                self.notify(msg, duration=2.0)
             self.refresh_all()
         elif prefix == "enemy" and self.phase == "battle" and self.turn == "player":
             self.player_shot(r, c)
@@ -888,7 +1022,7 @@ class SeaBattleApp:
     def select_ship(self, sender, value, user_data):
         self.selected_size = int(user_data)
         self._update_ship_cards()
-        curr_f = 0 if self.orientation == "H" else 6
+        curr_f = (getattr(self, "orient_angle_idx", 0) * 6) % 24
         tex = f"ui_orient_{self.selected_size}_frame_{curr_f}"
         if not dpg.does_item_exist(tex):
             tex = f"ui_orient_frame_{curr_f}"
@@ -896,15 +1030,20 @@ class SeaBattleApp:
             dpg.configure_item("orient_widget_btn", texture_tag=tex)
 
     def rotate(self, *args):
-        old_orient = self.orientation
-        self.orientation = "V" if self.orientation == "H" else "H"
+        old_idx = getattr(self, "orient_angle_idx", 0)
+        new_idx = (old_idx + 1) % 4
+        self.orient_angle_idx = new_idx
+        self.orientation = "V" if new_idx in (0, 2) else "H"
         orient_name = "Вертикальное" if self.orientation == "V" else "Горизонтальное"
-        start_f = 0 if old_orient == "H" else 6
-        end_f = 6 if self.orientation == "V" else 0
+        
+        # Поворот по часовой стрелке на +90° (6 кадров)
+        start_f = old_idx * 6
+        end_f = old_idx * 6 + 6
         self.orient_anim = (start_f, end_f, time.monotonic())
+        
         if dpg.does_item_exist("orientation_text"):
             dpg.set_value("orientation_text", orient_name)
-        self.notify(f"Расположение: {orient_name}", duration=1.2)
+        self.notify(f"Расположение: {orient_name}", duration=1.0)
 
     def _rotate_hotkey(self, *args):
         if self.current_page == "placement":
@@ -968,6 +1107,8 @@ class SeaBattleApp:
         self.enemy = Board(self.size)
         self.bot = BattleshipBot(self.size, self.difficulty)
         self.phase, self.turn, self.log = "placement", "player", []
+        if self.mode != "multiplayer":
+            self.phone_ready = False
         self.show_page("placement")
         self.refresh_all()
 
@@ -1187,13 +1328,15 @@ class SeaBattleApp:
                 tag = f"{prefix}_{r}_{ci}"
                 if dpg.does_item_exist(tag):
                     b_th = self._get_cell_base_theme(prefix, r, ci)
-                    dpg.bind_item_theme(tag, "cell_ship_crosshair" if b_th == "cell_ship" else "cell_water_crosshair")
+                    if b_th in ("cell_water", "cell_ship"):
+                        dpg.bind_item_theme(tag, "cell_ship_crosshair" if b_th == "cell_ship" else "cell_water_crosshair")
             # Линия столбца от верхнего заголовка до курсора
             for ri in range(r):
                 tag = f"{prefix}_{ri}_{c}"
                 if dpg.does_item_exist(tag):
                     b_th = self._get_cell_base_theme(prefix, ri, c)
-                    dpg.bind_item_theme(tag, "cell_ship_crosshair" if b_th == "cell_ship" else "cell_water_crosshair")
+                    if b_th in ("cell_water", "cell_ship"):
+                        dpg.bind_item_theme(tag, "cell_ship_crosshair" if b_th == "cell_ship" else "cell_water_crosshair")
             # Целевая клетка под курсором
             target_tag = f"{prefix}_{r}_{c}"
             if dpg.does_item_exist(target_tag):
@@ -1214,6 +1357,9 @@ class SeaBattleApp:
         self.player = Board(self.size)
         self.enemy = Board(self.size)
         self.bot = BattleshipBot(self.size, self.difficulty)
+        self.phase = "placement"
+        self.turn = "player"
+        self.log = []
         available_sizes = sorted(self.player.fleet_config.keys(), reverse=True)
         self.selected_size = available_sizes[0]
         self.notify(f"Размер поля: {self.size}×{self.size}")
@@ -1226,23 +1372,37 @@ class SeaBattleApp:
     def copy_room_link(self):
         url = self.relay.get_join_url()
         try:
-            import subprocess
-            subprocess.run(["powershell", "-NoProfile", "-Command", f"Set-Clipboard -Value '{url}'"], check=True)
+            dpg.set_clipboard_text(url)
             self.notify("Ссылка скопирована в буфер обмена!")
         except Exception:
             self.notify(f"Ссылка: {url}")
 
     def go_to_placement(self):
         self.mode = "multiplayer"
+        if self.size != 10:
+            self.size = 10
+            self.selected_size = 4
+            self.notify("Для мультиплеера установлен размер поля 10×10")
         self.new_game()
-        self.show_page("placement")
 
     def create_room(self):
         self.mode = "multiplayer"
-        self.relay.start()
-        dpg.set_value("room_code", self.relay.room_code)
-        dpg.set_value("join_url", self.relay.get_join_url())
-        dpg.set_value("network_status", "Подключение к брокеру...")
+        if self.size != 10:
+            self.size = 10
+            self.selected_size = 4
+        self.phone_ready = False
+        if dpg.does_item_exist("room_code"):
+            dpg.set_value("room_code", self.relay.room_code)
+        if dpg.does_item_exist("join_url"):
+            dpg.set_value("join_url", self.relay.get_join_url())
+        if dpg.does_item_exist("network_status"):
+            dpg.set_value("network_status", "Подключение к брокеру...")
+
+        def _connect_bg():
+            self.relay.start()
+            self.events.put(("room_updated", None))
+
+        threading.Thread(target=_connect_bg, daemon=True).start()
         w, h, data = self.relay.generate_qr_texture_data()
         if dpg.does_item_exist("qr_image"):
             dpg.delete_item("qr_image")
@@ -1257,6 +1417,7 @@ class SeaBattleApp:
 
     def stop_room(self):
         self.relay.stop()
+        self.phone_ready = False
         if dpg.does_item_exist("room_code"):
             dpg.set_value("room_code", "— — — — —")
         if dpg.does_item_exist("network_status"):
@@ -1276,15 +1437,31 @@ class SeaBattleApp:
         try:
             while True:
                 action, data = self.events.get_nowait()
-                if action == "phone_connected":
-                    dpg.set_value("network_status", "Телефон подключен")
+                if action == "room_updated":
+                    if dpg.does_item_exist("room_code"):
+                        dpg.set_value("room_code", self.relay.room_code)
+                    if dpg.does_item_exist("join_url"):
+                        dpg.set_value("join_url", self.relay.get_join_url())
+                elif action == "relay_error":
+                    if dpg.does_item_exist("network_status"):
+                        dpg.set_value("network_status", "Ошибка подключения к брокеру")
+                    self.notify("Не удалось подключиться к MQTT брокеру", duration=3.5)
+                elif action == "phone_connected":
+                    if dpg.does_item_exist("network_status"):
+                        dpg.set_value("network_status", "Телефон подключен")
                     self.notify("Телефон подключен!")
                 elif action == "phone_ready":
                     self.phone_ready = True
-                    dpg.set_value("network_status", "Телефон готов. Расставьте флот и нажмите «Начать бой»")
+                    if dpg.does_item_exist("network_status"):
+                        dpg.set_value("network_status", "Телефон готов. Расставьте флот и нажмите «Начать бой»")
                     self.notify("Телефон готов к бою!")
+                elif action == "phone_restart":
+                    self.phone_ready = False
+                    if dpg.does_item_exist("network_status"):
+                        dpg.set_value("network_status", "Телефон подключен (новая расстановка)")
+                    self.notify("Игрок на телефоне готовится к новой игре")
                 elif action == "phone_shot" and self.phase == "battle":
-                    if self.turn not in ("phone", "waiting"):
+                    if self.turn != "phone":
                         continue
                     r, c = data
                     result, ship, misses = self.player.receive_shot(r, c)
@@ -1332,7 +1509,7 @@ class SeaBattleApp:
             return
         self.view_width, self.view_height = width, height
         if dpg.does_item_exist("content"):
-            self.show_page(self.current_page)
+            self.show_page(self.current_page, animate=False)
 
 
 if __name__ == "__main__":

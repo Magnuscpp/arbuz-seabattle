@@ -397,33 +397,128 @@ def build_assets():
                     state_name = "active" if active else "normal"
                     im.save(ROOT / f"ship_card_{size}_{state_name}.png")
 
-    # 4b. Чистые векторные иконки вращающегося корабля для виджета РАСПОЛОЖЕНИЕ (без рамок/квадратов)
-    CANVAS_SZ = 64
-    max_dims = {5: 56, 4: 56, 3: 50, 2: 42, 1: 30}
+    # 4b. Векторные иконки вращающегося корабля для виджета РАСПОЛОЖЕНИЕ (0..360 по часовой стрелке)
+    # Полная отрисовка корпуса (обводка + палуба) и всех внутренних деталей (башни, дальномеры, рубка, палубные швы)
+    # 24 кадра (шаг 15 градусов): каждые 90 градусов = 6 кадров плавного поворота по часовой стрелке как штурвал!
+    # Размер холста: 140x140 — даже 5-палубный флагман влезает целиком с запасом, не обрезаясь ни при каком угле!
+    def render_vertical_ship_for_rotation(svg_path, sz, px_per_unit=1.08):
+        txt = Path(svg_path).read_text(encoding='utf-8')
+        vm = re.search(r'viewBox="([0-9\.\s\-]+)"', txt)
+        vx, vy, vw, vh = [float(x) for x in vm.group(1).split()] if vm else (0, 0, 24, 24 * sz)
+
+        sup = 3.0
+        scale = px_per_unit * sup
+        total_w_px = int(round(vw * scale))
+        total_h_px = int(round(vh * scale))
+
+        fig = plt.figure(figsize=(total_w_px / 100.0, total_h_px / 100.0), dpi=100)
+        ax = fig.add_axes([0, 0, 1, 1])
+        fig.patch.set_alpha(0.0)
+        ax.patch.set_alpha(0.0)
+        ax.set_xlim(vx, vx + vw)
+        ax.set_ylim(vy + vh, vy)
+        ax.axis('off')
+
+        lw_hull = 2.2 * scale
+        lw_detail = 1.4 * scale
+        deck_color = '#1E2330'
+
+        is_first_path = True
+        for tag_m in re.finditer(r'<path\b([^>]+)>', txt, re.DOTALL):
+            attrs = tag_m.group(1)
+            d_m = re.search(r'\bd="([^"]+)"', attrs)
+            if not d_m:
+                continue
+            d = d_m.group(1)
+            if is_first_path:
+                is_first_path = False
+                ax.add_patch(patches.PathPatch(parse_path(d), facecolor=deck_color, edgecolor='#FFFFFF', lw=lw_hull, capstyle='round', joinstyle='round'))
+            else:
+                has_fill = ('fill="#' in attrs or 'fill="white"' in attrs) and 'fill="none"' not in attrs
+                fill = '#FFFFFF' if has_fill else 'none'
+                edge = '#FFFFFF' if ('stroke=' in attrs or not has_fill) else 'none'
+                ax.add_patch(patches.PathPatch(parse_path(d), facecolor=fill, edgecolor=edge, lw=lw_detail, capstyle='round', joinstyle='round'))
+
+        for tag_m in re.finditer(r'<line\b([^>]+)>', txt, re.DOTALL):
+            attrs = tag_m.group(1)
+            x1 = float(re.search(r'x1="([^"]+)"', attrs).group(1))
+            y1 = float(re.search(r'y1="([^"]+)"', attrs).group(1))
+            x2 = float(re.search(r'x2="([^"]+)"', attrs).group(1))
+            y2 = float(re.search(r'y2="([^"]+)"', attrs).group(1))
+            ls = '--' if 'stroke-dasharray' in attrs else '-'
+            ax.plot([x1, x2], [y1, y2], color='#FFFFFF', lw=lw_detail, linestyle=ls, solid_capstyle='round')
+
+        for tag_m in re.finditer(r'<circle\b([^>]+)>', txt, re.DOTALL):
+            attrs = tag_m.group(1)
+            cx = float(re.search(r'cx="([^"]+)"', attrs).group(1))
+            cy = float(re.search(r'cy="([^"]+)"', attrs).group(1))
+            r = float(re.search(r'r="([^"]+)"', attrs).group(1))
+            has_fill = ('fill="#' in attrs or 'fill="white"' in attrs) and 'fill="none"' not in attrs
+            fill = '#FFFFFF' if has_fill else 'none'
+            edge = '#FFFFFF' if ('stroke=' in attrs or not has_fill) else 'none'
+            ax.add_patch(patches.Circle((cx, cy), r, facecolor=fill, edgecolor=edge, lw=lw_detail))
+
+        for tag_m in re.finditer(r'<rect\b([^>]+)>', txt, re.DOTALL):
+            attrs = tag_m.group(1)
+            x = float(re.search(r'x="([^"]+)"', attrs).group(1))
+            y = float(re.search(r'y="([^"]+)"', attrs).group(1))
+            w = float(re.search(r'width="([^"]+)"', attrs).group(1))
+            h = float(re.search(r'height="([^"]+)"', attrs).group(1))
+            has_fill = ('fill="#' in attrs or 'fill="white"' in attrs) and 'fill="none"' not in attrs
+            fill = '#FFFFFF' if has_fill else 'none'
+            edge = '#FFFFFF' if ('stroke=' in attrs or not has_fill) else 'none'
+            ax.add_patch(patches.Rectangle((x, y), w, h, facecolor=fill, edgecolor=edge, lw=lw_detail))
+
+        buf = BytesIO()
+        plt.savefig(buf, format='png', transparent=True, pad_inches=0, dpi=100)
+        plt.close(fig)
+        buf.seek(0)
+        im_hi = Image.open(buf).convert('RGBA')
+        bbox = im_hi.getbbox()
+        return im_hi.crop(bbox) if bbox else im_hi
+
+    CANVAS_SZ = 140
+    NUM_FRAMES = 24  # 360 / 24 = 15 градусов на кадр, 90 градусов = 6 кадров
 
     for sz in [1, 2, 3, 4, 5]:
         svg_f = svg_dir / f"ship_{sz}deck.svg"
         if not svg_f.exists():
-            continue
-        raw_deck = render_deck_hires(svg_f, sz)
-        target_d = max_dims.get(sz, 50)
-        scale = float(target_d) / max(raw_deck.width, raw_deck.height)
+            desktop_svg = Path(f"C:/Users/user/Desktop/ship_{sz}deck.svg")
+            if desktop_svg.exists():
+                svg_f = desktop_svg
+            else:
+                continue
+        raw_hi = render_vertical_ship_for_rotation(svg_f, sz, px_per_unit=1.08)
 
-        for f_idx in range(7):
-            # ang: f=0 -> -90 (горизонтальное, носом вправо), f=6 -> 0 (вертикальное, носом вверх)
-            ang = -90.0 + (90.0 * f_idx / 6.0)
-            rot_im = raw_deck.rotate(-ang, expand=True, resample=Image.Resampling.BICUBIC)
-            sw = max(1, int(round(rot_im.width * scale)))
-            sh = max(1, int(round(rot_im.height * scale)))
-            scaled_ship = rot_im.resize((sw, sh), Image.Resampling.LANCZOS)
+        # Сохраняем вертикальный статический кадр
+        w_norm = int(round(raw_hi.width / 3.0))
+        h_norm = int(round(raw_hi.height / 3.0))
+        scaled_v = raw_hi.resize((w_norm, h_norm), Image.Resampling.LANCZOS)
+        tile_v = Image.new("RGBA", (CANVAS_SZ, CANVAS_SZ), (0, 0, 0, 0))
+        tile_v.alpha_composite(scaled_v, ((CANVAS_SZ - w_norm) // 2, (CANVAS_SZ - h_norm) // 2))
+        tile_v.save(ROOT / f"ship_vertical_{sz}.png")
 
-            tile = Image.new("RGBA", (CANVAS_SZ, CANVAS_SZ), (0, 0, 0, 0))
-            rx = (CANVAS_SZ - sw) // 2
-            ry = (CANVAS_SZ - sh) // 2
-            tile.alpha_composite(scaled_ship, (rx, ry))
-            tile.save(ROOT / f"orient_{sz}_frame_{f_idx}.png")
+        # Генерируем 24 кадра вращения по часовой стрелке
+        for f_idx in range(NUM_FRAMES):
+            ang_deg = f_idx * (360.0 / NUM_FRAMES)
+            rot_hi = raw_hi.rotate(-ang_deg, resample=Image.Resampling.BICUBIC, expand=True)
+            fw = int(round(rot_hi.width / 3.0))
+            fh = int(round(rot_hi.height / 3.0))
+            rot_1x = rot_hi.resize((fw, fh), Image.Resampling.LANCZOS)
+
+            frame_tile = Image.new("RGBA", (CANVAS_SZ, CANVAS_SZ), (0, 0, 0, 0))
+            frame_tile.alpha_composite(rot_1x, ((CANVAS_SZ - fw) // 2, (CANVAS_SZ - fh) // 2))
+            frame_tile.save(ROOT / f"orient_{sz}_frame_{f_idx}.png")
             if sz == 4:
-                tile.save(ROOT / f"orient_frame_{f_idx}.png")
+                frame_tile.save(ROOT / f"orient_frame_{f_idx}.png")
+
+    # Вспомогательная функция для генерации суперсэмплированных скругленных кнопок с идеальным антиалиасингом
+    def draw_smooth_pill(w, h, radius, bg, border, border_w=1):
+        s = 4
+        im_hi = Image.new('RGBA', (w * s, h * s), (0, 0, 0, 0))
+        d_hi = ImageDraw.Draw(im_hi)
+        d_hi.rounded_rectangle((0, 0, w * s - 1, h * s - 1), radius=radius * s, fill=bg, outline=border, width=border_w * s)
+        return im_hi.resize((w, h), Image.Resampling.LANCZOS)
 
     # 5. Новые векторные иконки и текстуры кнопок из svg_sources
     svg_dir = ROOT / "svg_sources"
@@ -444,15 +539,14 @@ def build_assets():
         ico_rnd = render_tight_svg(svg_dir / "dice.svg", target_h=16, color="#FFFFFF", filled=True) if (svg_dir / "dice.svg").exists() else None
         ico_play = render_tight_svg(svg_dir / "play.svg", target_h=16, color="#0E0F12", filled=True) if (svg_dir / "play.svg").exists() else None
 
-        # Кнопка Повернуть (R): 146x36 со скруглением radius=6 и hover состоянием
+        # Кнопка Повернуть (R): 146x36 с мягким круглым скруглением radius=8 и hover состоянием
         if ico_rot:
             for state, bg, border, txt_col in [
                 ("normal", (22, 24, 28, 255), (46, 52, 64, 255), (240, 243, 248, 255)),
                 ("hov", (34, 38, 50, 255), (85, 98, 120, 255), (255, 255, 255, 255)),
             ]:
-                im = Image.new("RGBA", (146, 36), (0, 0, 0, 0))
+                im = draw_smooth_pill(146, 36, radius=8, bg=bg, border=border, border_w=1)
                 d = ImageDraw.Draw(im)
-                d.rounded_rectangle((0, 0, 145, 35), radius=6, fill=bg, outline=border, width=1)
                 bbox = d.textbbox((0, 0), "Повернуть (R)", font=font_bold)
                 tw = bbox[2] - bbox[0]
                 tot_w = ico_rot.width + 5 + tw
@@ -462,15 +556,14 @@ def build_assets():
                 suffix = "" if state == "normal" else "_hov"
                 im.save(ROOT / f"btn_rotate{suffix}.png")
 
-        # Кнопка Очистить: 146x36 со скруглением radius=6 и hover состоянием
+        # Кнопка Очистить: 146x36 с мягким круглым скруглением radius=8 и hover состоянием
         if ico_clr:
             for state, bg, border, txt_col in [
                 ("normal", (35, 18, 24, 255), (120, 35, 45, 255), (248, 113, 113, 255)),
                 ("hov", (52, 22, 32, 255), (175, 48, 62, 255), (255, 135, 135, 255)),
             ]:
-                im = Image.new("RGBA", (146, 36), (0, 0, 0, 0))
+                im = draw_smooth_pill(146, 36, radius=8, bg=bg, border=border, border_w=1)
                 d = ImageDraw.Draw(im)
-                d.rounded_rectangle((0, 0, 145, 35), radius=6, fill=bg, outline=border, width=1)
                 bbox = d.textbbox((0, 0), "Очистить", font=font_bold)
                 tw = bbox[2] - bbox[0]
                 tot_w = ico_clr.width + 5 + tw
@@ -480,15 +573,14 @@ def build_assets():
                 suffix = "" if state == "normal" else "_hov"
                 im.save(ROOT / f"btn_clear{suffix}.png")
 
-        # Кнопка Случайная расстановка: 300x36 со скруглением radius=6 и hover состоянием
+        # Кнопка Случайная расстановка: 300x36 с мягким круглым скруглением radius=8 и hover состоянием
         if ico_rnd:
             for state, bg, border, txt_col in [
                 ("normal", (22, 24, 28, 255), (46, 52, 64, 255), (240, 243, 248, 255)),
                 ("hov", (34, 38, 50, 255), (85, 98, 120, 255), (255, 255, 255, 255)),
             ]:
-                im = Image.new("RGBA", (300, 36), (0, 0, 0, 0))
+                im = draw_smooth_pill(300, 36, radius=8, bg=bg, border=border, border_w=1)
                 d = ImageDraw.Draw(im)
-                d.rounded_rectangle((0, 0, 299, 35), radius=6, fill=bg, outline=border, width=1)
                 bbox = d.textbbox((0, 0), "Случайная расстановка", font=font_bold)
                 tw = bbox[2] - bbox[0]
                 tot_w = ico_rnd.width + 5 + tw
@@ -498,15 +590,14 @@ def build_assets():
                 suffix = "" if state == "normal" else "_hov"
                 im.save(ROOT / f"btn_random{suffix}.png")
 
-        # Кнопка Начать бой: 300x42 со скруглением radius=6 и hover состоянием
+        # Кнопка Начать бой: 300x42 с мягким круглым скруглением radius=10 (идеальный круг, без обрезанных углов!)
         if ico_play:
             for state, bg, border, txt_col in [
                 ("normal", (245, 245, 247, 255), (255, 255, 255, 255), (14, 15, 18, 255)),
                 ("hov", (255, 255, 255, 255), (255, 255, 255, 255), (14, 15, 18, 255)),
             ]:
-                im = Image.new("RGBA", (300, 42), (0, 0, 0, 0))
+                im = draw_smooth_pill(300, 42, radius=10, bg=bg, border=border, border_w=1)
                 d = ImageDraw.Draw(im)
-                d.rounded_rectangle((0, 0, 299, 41), radius=6, fill=bg, outline=border, width=1)
                 bbox = d.textbbox((0, 0), "Начать бой", font=font_bold)
                 tw = bbox[2] - bbox[0]
                 tot_w = ico_play.width + 5 + tw
@@ -516,7 +607,30 @@ def build_assets():
                 suffix = "" if state == "normal" else "_hov"
                 im.save(ROOT / f"btn_start{suffix}.png")
 
-    print("Все ассеты карточек кораблей и кнопок действий сгенерированы!")
+    # Конвертируем только используемые ассеты в сжатый lossless WebP и удаляем временные/неиспользуемые PNG
+    needed_stems = {
+        "brand_header", "toast_header",
+        "icon_bot_accent", "icon_multiplayer_accent", "icon_win_accent", "icon_despair_accent",
+    }
+    for p_name in ("home", "game", "multiplayer", "settings", "about"):
+        for f_i in range(16):
+            needed_stems.add(f"nav_{p_name}_{f_i}")
+    for b_name in ("btn_rotate", "btn_clear", "btn_random", "btn_start"):
+        needed_stems.add(b_name)
+        needed_stems.add(f"{b_name}_hov")
+    for sz_i in (1, 2, 3, 4, 5):
+        for f_i in range(24):
+            needed_stems.add(f"orient_{sz_i}_frame_{f_i}")
+
+    for png_path in list(ROOT.glob("*.png")):
+        stem = png_path.stem
+        is_card = bool(re.fullmatch(r"ship_card_\d+_\d+_\d+_[01]", stem))
+        if stem in needed_stems or is_card:
+            with Image.open(png_path) as im_out:
+                im_out.convert("RGBA").save(png_path.with_suffix(".webp"), "WEBP", lossless=True, method=6)
+        png_path.unlink()
+
+    print("Все используемые ассеты сгенерированы и оптимизированы в WebP!")
 
 if __name__ == "__main__":
     build_assets()

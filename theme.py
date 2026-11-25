@@ -258,6 +258,26 @@ def create_themes():
             dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (32, 35, 42, 180))
             dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 1)
 
+    # Тема плотного и равномерного расстояния (4px) для кнопок действий расстановки
+    with dpg.theme(tag="placement_actions_theme"):
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 0, 4)
+            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 0, 0)
+
+    # Карточка со скроллбаром для длинной документации во вкладке «О проекте»
+    with dpg.theme(tag="about_card_theme"):
+        with dpg.theme_component(dpg.mvChildWindow):
+            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, PANEL)
+            dpg.add_theme_color(dpg.mvThemeCol_Border, STROKE)
+            dpg.add_theme_color(dpg.mvThemeCol_ScrollbarBg, (14, 15, 18, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrab, (55, 62, 74, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrabHovered, (85, 95, 112, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrabActive, (120, 132, 152, 255))
+            dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 6)
+            dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 16, 14)
+            dpg.add_theme_style(dpg.mvStyleVar_ScrollbarSize, 8)
+            dpg.add_theme_style(dpg.mvStyleVar_ScrollbarRounding, 4)
+
 
 def load_fonts():
     """Загрузка плотных и четких шрифтов Segoe UI Semibold для легко читаемой кириллицы."""
@@ -279,6 +299,18 @@ def load_fonts():
         dpg.add_font(str(font_base), 14, tag="font_badge")
         dpg.add_font(str(font_bold), 17, tag="font_toast")
 
+        calibri_reg = Path("C:/Windows/Fonts/calibri.ttf")
+        calibri_bold = Path("C:/Windows/Fonts/calibrib.ttf")
+        consola_reg = Path("C:/Windows/Fonts/consola.ttf")
+
+        about_reg_path = calibri_reg if calibri_reg.exists() else font_base
+        about_bold_path = calibri_bold if calibri_bold.exists() else about_reg_path
+        about_mono_path = consola_reg if consola_reg.exists() else about_reg_path
+
+        dpg.add_font(str(about_reg_path), 16, tag="font_about")
+        dpg.add_font(str(about_bold_path), 18, tag="font_about_bold")
+        dpg.add_font(str(about_mono_path), 14, tag="font_about_mono")
+
     return {
         "regular": "font_regular",
         "semibold": "font_semibold",
@@ -286,4 +318,7 @@ def load_fonts():
         "title": "font_title",
         "badge": "font_badge",
         "toast": "font_toast",
+        "about": "font_about",
+        "about_bold": "font_about_bold",
+        "about_mono": "font_about_mono",
     }
