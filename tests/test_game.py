@@ -33,6 +33,7 @@ def test_app_initial_state_and_new_game_reset():
         assert app.orientation == "H"
         assert app.orient_angle_idx == 1
 
+        app.show_page = lambda *a, **kw: None
         app.phase = "battle"
         app.turn = "phone"
         app.enemy_sunk_count = 4
